@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+db.sqlite3
+server/media/
+server/staticfiles/
+.DS_Store
+
+# Claude<->Mac transfer tarballs (same convention as guhya-pos)
+.sync*.tgz
+_build*.tgz
+_to_delete/
+Claude outputs/

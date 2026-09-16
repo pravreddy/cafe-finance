@@ -1,0 +1,106 @@
+{% extends "ledger/base.html" %}
+{% block title %}Review · Cafe Finance{% endblock %}
+{% block content %}
+<div class="card">
+  {% if proof.is_pdf %}
+    <a class="btn secondary small" href="{% url 'ledger:proof_file' proof.pk %}" target="_blank">Open PDF</a>
+    <span class="muted">{{ proof.original_name }}</span>
+  {% else %}
+    <img class="proof" src="{% url 'ledger:proof_file' proof.pk %}" alt="proof">
+  {% endif %}
+  {% if proof.extraction_error %}<div class="msg warning" style="margin-top:8px">Couldn't read this automatically: {{ proof.extraction_error }}. Fill it in by hand.</div>{% endif %}
+  {% if proof.extracted_json.confidence %}<div class="muted" style="margin-top:6px">Read with {{ proof.extracted_json.confidence|floatformat:2 }} confidence — check the numbers.</div>{% endif %}
+</div>
+
+<form method="post" class="card" id="rf">{% csrf_token %}
+  {{ form.non_field_errors }}
+  <label>What is this?</label>
+  <div class="chips" id="doctype">
+    {% for val, lab in form.fields.doc_type.choices %}
+    <label><input type="radio" name="doc_type" value="{{ val }}" {% if form.doc_type.value == val %}checked{% endif %}><span>{{ lab }}</span></label>
+    {% endfor %}
+  </div>
+
+  <label>Cafe</label>
+  <select name="cafe">
+    <option value="">— pick —</option>
+    {% for c in cafes %}<option value="{{ c.pk }}" {% if form.cafe.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% elif not form.cafe.value and me.default_cafe_id == c.pk %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+
+  <label>Category</label>
+  <div class="chips">
+    {% for c in categories %}
+    <label><input type="radio" name="category" value="{{ c.pk }}" {% if form.category.value|stringformat:"s" == c.pk|stringformat:"s" %}checked{% endif %}><span>{{ c.name }}</span></label>
+    {% endfor %}
+  </div>
+  {{ form.category.errors }}
+
+  <div id="sec-payment">
+    <div class="row">
+      <div style="flex:1"><label>Amount (₹)</label>{{ form.amount }}{{ form.amount.errors }}</div>
+      <div style="flex:1"><label>Paid on</label>{{ form.paid_on }}{{ form.paid_on.errors }}</div>
+    </div>
+    <label>Paid to</label>{{ form.payee_name }}
+    <label>Paid by</label>
+    <select name="paid_by">
+      {% for p in people %}<option value="{{ p.pk }}" {% if form.paid_by.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% elif not form.paid_by.value and p.pk == me.pk %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+    <div class="row">
+      <div style="flex:1"><label>App</label>{{ form.upi_app }}</div>
+      <div style="flex:1"><label>UTR</label>{{ form.utr }}</div>
+    </div>
+    {% if invoice_suggestions %}
+    <label>Is this paying an invoice?</label>
+    <div class="chips">
+      <label><input type="radio" name="invoice" value="" {% if not form.invoice.value %}checked{% endif %}><span>No</span></label>
+      {% for inv, why in invoice_suggestions %}
+      <label><input type="radio" name="invoice" value="{{ inv.pk }}" {% if form.invoice.value|stringformat:"s" == inv.pk|stringformat:"s" %}checked{% endif %}><span>{{ inv.vendor_name }} {{ inv.invoice_number }} · owed ₹{{ inv.outstanding|floatformat:0 }}</span></label>
+      {% endfor %}
+    </div>
+    {% elif form.invoice.value %}
+    <input type="hidden" name="invoice" value="{{ form.invoice.value }}">
+    {% endif %}
+  </div>
+
+  <div id="sec-invoice">
+    <label>Vendor</label>{{ form.vendor_name }}
+    <div class="row">
+      <div style="flex:1"><label>Invoice no.</label>{{ form.invoice_number }}</div>
+      <div style="flex:1"><label>Total (₹)</label>{{ form.total }}{{ form.total.errors }}</div>
+    </div>
+    <div class="row">
+      <div style="flex:1"><label>Invoice date</label>{{ form.invoice_date }}</div>
+      <div style="flex:1"><label>Due</label>{{ form.due_date }}</div>
+    </div>
+  </div>
+
+  <label>Comment — what was this for?</label>
+  {{ form.description }}
+
+  <div class="sticky"><button class="btn" type="submit">Save</button>
+    <a class="btn secondary" href="{% url 'ledger:home' %}">Cancel</a></div>
+</form>
+
+{% if trail %}
+<div class="card">
+  <h2 style="margin-top:0">Share trail</h2>
+  <ul class="trail">
+    {% for s in trail %}<li>{{ s.shared_at|date:"d M Y H:i" }} — {{ s.get_channel_display }} by {{ s.shared_by.name|default:s.shared_by_label|default:"?" }}{% if s.was_duplicate %} (duplicate, matched by {{ s.match_method }}){% endif %}{% if s.note %} — “{{ s.note }}”{% endif %}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}
+{% block script %}
+<script>
+(function(){
+  const f=document.getElementById('rf');
+  function sync(){
+    const v=(f.querySelector('input[name=doc_type]:checked')||{}).value;
+    document.getElementById('sec-payment').style.display = v==='payment'?'':'none';
+    document.getElementById('sec-invoice').style.display = v==='invoice'?'':'none';
+  }
+  f.querySelectorAll('input[name=doc_type]').forEach(r=>r.addEventListener('change',sync));
+  sync();
+})();
+</script>
+{% endblock %}

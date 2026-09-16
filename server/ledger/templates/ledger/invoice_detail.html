@@ -1,0 +1,19 @@
+{% extends "ledger/base.html" %}
+{% block title %}Invoice · Cafe Finance{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{ invoice.vendor_name }} {{ invoice.invoice_number }}</h1>
+  <div class="row"><span class="amt">₹{{ invoice.total|floatformat:0 }}</span><span class="pill {{ invoice.status }}">{{ invoice.get_status_display }}</span></div>
+  <div class="muted">{{ invoice.invoice_date|date:"d M Y"|default:"no date" }}{% if invoice.due_date %} · due {{ invoice.due_date|date:"d M Y" }}{% endif %} · {{ invoice.cafe.name|default:"no cafe" }} · {{ invoice.category.name|default:"uncategorised" }}{% if invoice.vendor_gstin %} · GSTIN {{ invoice.vendor_gstin }}{% endif %}</div>
+  {% if invoice.description %}<p>{{ invoice.description }}</p>{% endif %}
+  <div class="row"><span>Paid (confirmed): <b>₹{{ invoice.paid_total|floatformat:0 }}</b></span>{% if invoice.outstanding is not None %}<span>Owed: <b>₹{{ invoice.outstanding|floatformat:0 }}</b></span>{% endif %}</div>
+  <div class="row" style="margin-top:8px">{% for p in proofs %}<a class="btn secondary small" href="{% url 'ledger:proof_file' p.pk %}" target="_blank">{{ p.get_kind_display }}</a> <a class="muted" href="{% url 'ledger:review' p.pk %}">edit</a>{% endfor %}</div>
+</div>
+
+<h2>Payments against this invoice</h2>
+{% for e in payments %}
+<div class="card"><div class="row"><span class="amt">₹{{ e.amount|floatformat:0 }}</span><span>{{ e.paid_on|date:"d M Y" }} · by {{ e.paid_by.name|default:"?" }}</span><span class="pill {{ e.status }}">{{ e.get_status_display }}</span><span class="tag">{{ e.cf_tag }}</span></div>{% if e.description %}<div>{{ e.description }}</div>{% endif %}</div>
+{% empty %}<div class="card muted">No payments linked yet. When a payment to this vendor is shared, the review screen will suggest this invoice.</div>{% endfor %}
+
+{% if trail %}<div class="card"><h2 style="margin-top:0">Share trail</h2><ul class="trail">{% for s in trail %}<li>{{ s.shared_at|date:"d M Y H:i" }} — {{ s.get_channel_display }} by {{ s.shared_by.name|default:s.shared_by_label|default:"?" }}</li>{% endfor %}</ul></div>{% endif %}
+{% endblock %}

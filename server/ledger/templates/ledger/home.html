@@ -1,0 +1,30 @@
+{% extends "ledger/base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <div><div class="muted">Hi {{ me.name }} · you paid this month (confirmed)</div><div class="amt">₹{{ my_month|floatformat:0 }}</div></div>
+    <span class="sp" style="flex:1"></span>
+    {% if me.can_confirm and pending %}<a class="btn small" href="{% url 'ledger:queue' %}">{{ pending }} to review</a>{% endif %}
+  </div>
+  <p class="muted" style="margin:12px 0 0">To add a payment: pay in PhonePe / GPay → <b>Share</b> → <b>Cafe Finance</b>. Or long-press an image in WhatsApp → Share → Cafe Finance. Or <a href="{% url 'ledger:share' %}">upload here</a>.</p>
+</div>
+
+<h2>{% if me.can_confirm %}Latest entries{% else %}My entries{% endif %}</h2>
+{% for e in entries %}
+<div class="card">
+  <div class="row">
+    <span class="amt">₹{{ e.amount|floatformat:0 }}</span>
+    <span>{{ e.payee_name|default:"—" }}</span>
+    <span class="pill {{ e.status }}">{{ e.get_status_display }}</span>
+  </div>
+  <div class="muted">{{ e.paid_on|date:"d M Y" }} · {{ e.category.name|default:"Uncategorised" }} · {{ e.cafe.name|default:"no cafe" }} · paid by {{ e.paid_by.name|default:"?" }}</div>
+  {% if e.description %}<div>{{ e.description }}</div>{% endif %}
+  <div class="row" style="margin-top:6px"><span class="tag">{{ e.cf_tag }}</span>
+    {% with p=e.proofs.first %}{% if p %}<a class="muted" href="{% url 'ledger:review' p.pk %}">open</a>{% endif %}{% endwith %}
+    {% if e.invoice_id %}<a class="muted" href="{% url 'ledger:invoice_detail' e.invoice_id %}">invoice</a>{% endif %}
+  </div>
+</div>
+{% empty %}
+<div class="card muted">Nothing yet. Share your first payment screenshot.</div>
+{% endfor %}
+{% endblock %}

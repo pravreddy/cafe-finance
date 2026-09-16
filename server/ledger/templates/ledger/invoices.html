@@ -1,0 +1,13 @@
+{% extends "ledger/base.html" %}
+{% block title %}Invoices · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Invoices</h1>
+{% for i in invoices %}
+<div class="card">
+  <div class="row"><span class="amt">₹{{ i.total|floatformat:0 }}</span><span>{{ i.vendor_name }} {{ i.invoice_number }}</span><span class="pill {{ i.status }}">{{ i.get_status_display }}</span></div>
+  <div class="muted">{{ i.invoice_date|date:"d M Y"|default:"no date" }} · {{ i.cafe.name|default:"no cafe" }} · {{ i.category.name|default:"uncategorised" }}{% if i.outstanding %} · owed ₹{{ i.outstanding|floatformat:0 }}{% endif %}</div>
+  {% if i.description %}<div>{{ i.description }}</div>{% endif %}
+  <a class="muted" href="{% url 'ledger:invoice_detail' i.pk %}">open</a>
+</div>
+{% empty %}<div class="card muted">No invoices yet. Share a PDF from email or a photo of a bill.</div>{% endfor %}
+{% endblock %}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Install:
+         cp com.guhya.cafe-finance.reconciler.plist ~/Library/LaunchAgents/
+         sed -i '' "s|__REPO__|$PWD|" ~/Library/LaunchAgents/com.guhya.cafe-finance.reconciler.plist
+         launchctl load ~/Library/LaunchAgents/com.guhya.cafe-finance.reconciler.plist
+       Logs: ~/.cafe-finance/reconciler.log
+       Grant Full Disk Access to /usr/bin/python3 (System Settings → Privacy & Security). -->
+  <key>Label</key><string>com.guhya.cafe-finance.reconciler</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>__REPO__/reconciler/read_whatsapp_mac.py</string>
+    <string>--push</string>
+  </array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/praveen.r/.cafe-finance/reconciler.log</string>
+  <key>StandardErrorPath</key><string>/Users/praveen.r/.cafe-finance/reconciler.log</string>
+</dict>
+</plist>

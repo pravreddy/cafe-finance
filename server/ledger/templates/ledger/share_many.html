@@ -1,0 +1,14 @@
+{% extends "ledger/base.html" %}
+{% block content %}
+<h1>{{ results|length }} files received</h1>
+{% for r in results %}
+<div class="card">
+  <div>{{ r.message }}</div>
+  <div class="row" style="margin-top:8px">
+    <span class="pill">{{ r.doc_type }}</span>
+    {% if r.entry %}<span class="tag">{{ r.entry.cf_tag }}</span>{% endif %}
+    <a class="btn small" href="{% url 'ledger:review' r.proof.pk %}">Review</a>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

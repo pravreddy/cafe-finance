@@ -1,0 +1,19 @@
+{% extends "ledger/base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Add a proof</h1>
+  <p class="muted">Payment screenshot (PhonePe, GPay, bank) or an invoice (PDF or photo). The app reads it and asks you to confirm the details.</p>
+  <form method="post" action="{% url 'ledger:share' %}" enctype="multipart/form-data">{% csrf_token %}
+    <label>File</label>
+    <input type="file" name="files" accept="image/*,application/pdf" multiple required>
+    <label>Comment (optional — what was this for?)</label>
+    <input type="text" name="note" placeholder="e.g. 2nd installment for painting">
+    <label>How did you get it?</label>
+    <div class="chips">
+      <label><input type="radio" name="channel" value="app_share" checked><span>I paid this</span></label>
+      <label><input type="radio" name="channel" value="wa_forward"><span>Forwarded from WhatsApp</span></label>
+    </div>
+    <div style="margin-top:14px"><button class="btn" type="submit">Read it</button></div>
+  </form>
+</div>
+{% endblock %}

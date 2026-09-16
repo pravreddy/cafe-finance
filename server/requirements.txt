@@ -1,0 +1,8 @@
+Django>=5.0,<6.0
+psycopg[binary]>=3.1
+python-dotenv>=1.0
+gunicorn>=22.0
+whitenoise>=6.6
+requests>=2.31
+Pillow>=10.2
+PyMuPDF>=1.24        # render PDF page 1 to PNG for the Ollama provider (Gemini takes PDFs natively)

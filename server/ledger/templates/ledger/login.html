@@ -1,0 +1,15 @@
+{% extends "ledger/base.html" %}
+{% block title %}Sign in · Cafe Finance{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Sign in</h1>
+  <p class="muted">Sign in once on this phone; shares from PhonePe / WhatsApp will then open straight into review.</p>
+  <form method="post">{% csrf_token %}
+    {{ form.non_field_errors }}
+    <label>Username</label>{{ form.username }}
+    <label>Password</label>{{ form.password }}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div style="margin-top:14px"><button class="btn" type="submit">Sign in</button></div>
+  </form>
+</div>
+{% endblock %}

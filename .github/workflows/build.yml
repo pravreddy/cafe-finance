@@ -1,0 +1,112 @@
+name: build-test-deploy
+
+# Copied from guhya-pos and trimmed. Build the image, TEST it against a fresh
+# Postgres (migrations from scratch + suite), then deploy to the Hetzner box.
+#
+# Deploy is the simple pull-and-restart form for now. When the app carries real
+# money data, lift the blue/green swap from guhya-pos/.github/workflows/build.yml
+# — it is proven and this app has the same /ping health check.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', '.gitignore']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', '.gitignore']
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: true
+          tags: |
+            ghcr.io/pravreddy/cafe-finance:latest
+            ghcr.io/pravreddy/cafe-finance:${{ github.sha }}
+
+  test:
+    name: "🧪 Tests (migrations + suite)"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: read }
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cf_test
+          POSTGRES_USER: cf_test
+          POSTGRES_PASSWORD: test_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cf_test" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      IMAGE: ghcr.io/pravreddy/cafe-finance:${{ github.sha }}
+      DJANGO_ENV: >-
+        -e DEBUG=1 -e SECRET_KEY=ci -e ALLOWED_HOSTS=* -e DOC_AI_PROVIDER=mock -e API_TOKEN=ci
+        -e POSTGRES_DB=cf_test -e POSTGRES_USER=cf_test -e POSTGRES_PASSWORD=test_password
+        -e POSTGRES_HOST=localhost -e POSTGRES_PORT=5432 -e MEDIA_ROOT=/tmp/media
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "📦 Migrations apply on a FRESH database"
+        run: docker run --rm --network host ${{ env.DJANGO_ENV }} $IMAGE python manage.py migrate --noinput
+      - name: "🔍 No missing migrations"
+        run: docker run --rm --network host ${{ env.DJANGO_ENV }} $IMAGE python manage.py makemigrations --check --dry-run
+      - name: "🏥 System check"
+        run: docker run --rm --network host ${{ env.DJANGO_ENV }} $IMAGE python manage.py check
+      - name: "🧪 Test suite"
+        run: docker run --rm --network host ${{ env.DJANGO_ENV }} $IMAGE python manage.py test --noinput -v 2
+
+  deploy:
+    name: Deploy to Hetzner
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.UK_SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /home/deploy/careai
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            DC="docker compose -f docker-compose.yml -f docker-compose.cafe-finance.yml"
+            # The service must exist in the server compose: ship the stack once from
+            # avyangah-infra/stacks/cafe-finance/ (to be written), then this runs.
+            if ! $DC config --services | grep -qx cafe-finance; then
+              echo "❌ server compose has no 'cafe-finance' service yet — ship the stack first"; exit 1
+            fi
+            $DC pull cafe-finance
+            $DC run --rm --no-deps cafe-finance python manage.py migrate --plan
+            $DC up -d --force-recreate cafe-finance
+            for i in $(seq 1 30); do
+              if docker exec cafe-finance curl -sf http://localhost:8000/ping >/dev/null 2>&1; then echo healthy; break; fi
+              sleep 3
+            done
+            docker exec cafe-finance curl -sf http://localhost:8000/ping >/dev/null || { docker logs cafe-finance --tail 50; exit 1; }
+            docker image prune -f
+            echo "🎉 cafe-finance deployed"

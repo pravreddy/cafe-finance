@@ -1,0 +1,45 @@
+{% extends "ledger/base.html" %}
+{% block title %}Saved · Cafe Finance{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Saved {{ entry.cf_tag }}</h1>
+  <div class="row"><span class="amt">₹{{ entry.amount|floatformat:0 }}</span><span>{{ entry.payee_name }}</span><span class="pill {{ entry.status }}">{{ entry.get_status_display }}</span></div>
+  <div class="muted">{{ entry.paid_on|date:"d M Y" }} · {{ entry.category.name|default:"Uncategorised" }} · {{ entry.cafe.name|default:"no cafe" }}</div>
+  {% if entry.status == 'pending' %}<p class="muted">A confirmer will check it; it counts in the reports once confirmed.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Now post it to the group</h2>
+  <p>Caption the app will send:</p>
+  <textarea id="cap" rows="2">{{ caption }}</textarea>
+  <div style="margin-top:12px" class="row">
+    {% if proof and not proof.is_pdf %}<button class="btn wa" id="wa" data-src="{% url 'ledger:proof_file' proof.pk %}" data-name="{{ proof.original_name }}">Share to WhatsApp</button>{% endif %}
+    <button class="btn secondary" id="copy">Copy caption</button>
+    <a class="btn secondary" href="{% url 'ledger:home' %}">Done</a>
+  </div>
+  <p class="muted" id="hint">On Android Chrome this opens the share sheet with the image + caption — pick the WhatsApp group.</p>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+(function(){
+  const cap=document.getElementById('cap'), wa=document.getElementById('wa'), hint=document.getElementById('hint');
+  document.getElementById('copy').onclick=()=>{navigator.clipboard.writeText(cap.value).then(()=>hint.textContent='Caption copied.')};
+  if(!wa) return;
+  wa.onclick=async()=>{
+    try{
+      const r=await fetch(wa.dataset.src); const blob=await r.blob();
+      const file=new File([blob], wa.dataset.name||'proof.jpg', {type: blob.type||'image/jpeg'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], text: cap.value});
+      } else if(navigator.share){
+        await navigator.share({text: cap.value});
+        hint.textContent='This browser can share text only — attach the image in WhatsApp yourself.';
+      } else {
+        hint.textContent='Sharing is not supported here. Copy the caption and post the image from your gallery.';
+      }
+    }catch(e){ if(e.name!=='AbortError') hint.textContent='Share failed: '+e.message; }
+  };
+})();
+</script>
+{% endblock %}

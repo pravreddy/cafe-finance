@@ -1,0 +1,45 @@
+{% extends "ledger/base.html" %}
+{% block title %}Queue · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Review queue</h1>
+
+<h2>Payments waiting ({{ pending|length }})</h2>
+{% for e in pending %}
+<div class="card">
+  <div class="row"><span class="amt">₹{{ e.amount|floatformat:0 }}</span><span>{{ e.payee_name|default:"—" }}</span><span class="pill {{ e.status }}">{{ e.get_status_display }}</span></div>
+  <div class="muted">{{ e.paid_on|date:"d M Y" }} · {{ e.category.name|default:"⚠ no category" }} · {{ e.cafe.name|default:"⚠ no cafe" }} · paid by {{ e.paid_by.name|default:"?" }} · {{ e.get_source_display }}</div>
+  {% if e.description %}<div>{{ e.description }}</div>{% endif %}
+  <div class="row" style="margin-top:8px">
+    <span class="tag">{{ e.cf_tag }}{% if e.utr %} · UTR {{ e.utr }}{% endif %}</span>
+    {% with p=e.proofs.first %}{% if p %}<a class="btn secondary small" href="{% url 'ledger:review' p.pk %}">Open</a>{% endif %}{% endwith %}
+    <form method="post" action="{% url 'ledger:entry_action' e.pk 'confirm' %}" style="display:inline">{% csrf_token %}<button class="btn small" {% if not e.category or not e.cafe %}title="Set category and cafe first"{% endif %}>Confirm</button></form>
+    <form method="post" action="{% url 'ledger:entry_action' e.pk 'reject' %}" style="display:inline">{% csrf_token %}<button class="btn danger small">Reject</button></form>
+  </div>
+</div>
+{% empty %}<div class="card muted">Nothing waiting.</div>{% endfor %}
+
+<h2>Invoices waiting ({{ invoices|length }})</h2>
+{% for i in invoices %}
+<div class="card"><div class="row"><span class="amt">₹{{ i.total|floatformat:0 }}</span><span>{{ i.vendor_name }} {{ i.invoice_number }}</span></div>
+  <div class="row" style="margin-top:8px">{% with p=i.proofs.first %}{% if p %}<a class="btn secondary small" href="{% url 'ledger:review' p.pk %}">Open</a>{% endif %}{% endwith %}</div></div>
+{% empty %}<div class="card muted">None.</div>{% endfor %}
+
+<h2>Open invoices ({{ open_invoices|length }})</h2>
+{% for i in open_invoices %}
+<div class="card"><div class="row"><span class="amt">₹{{ i.outstanding|floatformat:0 }} owed</span><span>of ₹{{ i.total|floatformat:0 }} · {{ i.vendor_name }}</span><span class="pill {{ i.status }}">{{ i.get_status_display }}</span>
+  <a class="muted" href="{% url 'ledger:invoice_detail' i.pk %}">open</a></div></div>
+{% empty %}<div class="card muted">None.</div>{% endfor %}
+
+<h2>Seen in WhatsApp, not in ledger ({{ unmatched|length }})</h2>
+<p class="muted">The reconciler saw these images in the groups but couldn't match them to any payment or invoice.</p>
+{% for g in unmatched %}
+<div class="card">
+  <div><b>{{ g.group_name }}</b> · {{ g.sender }} · {{ g.sent_at|date:"d M Y H:i" }}</div>
+  {% if g.caption %}<div>“{{ g.caption }}”</div>{% endif %}
+  <div class="row" style="margin-top:8px">
+    {% if g.proof %}<a class="btn secondary small" href="{% url 'ledger:review' g.proof.pk %}">Open</a>{% endif %}
+    <form method="post" action="{% url 'ledger:group_post_dismiss' g.pk %}" style="display:inline">{% csrf_token %}<button class="btn secondary small">Not money</button></form>
+  </div>
+</div>
+{% empty %}<div class="card muted">Everything in the groups is accounted for.</div>{% endfor %}
+{% endblock %}

@@ -1,0 +1,43 @@
+# Local stack: Postgres + the app on :8020 (guhya-pos uses 8000/8010).
+#
+#   docker compose up --build
+#   docker compose exec web python manage.py seed_basic --with-users
+#   docker compose exec web python manage.py createsuperuser
+#
+# On the Hetzner box this becomes a service in the shared careai compose
+# (avyangah-infra/stacks/cafe-finance/) behind careai-nginx at
+# ledger.guhya.co.in — same pattern as guhya-pos. See docs/05-plan.md.
+name: cafe-finance
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: cafe_finance
+      POSTGRES_USER: cafe_finance
+      POSTGRES_PASSWORD: cafe_finance
+    volumes:
+      - cafe_finance_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cafe_finance"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: .
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      MEDIA_ROOT: /data/media
+    volumes:
+      - cafe_finance_media:/data/media
+    ports:
+      - "8020:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  cafe_finance_db:
+  cafe_finance_media:
