@@ -4,16 +4,29 @@
 
 ---
 
-## 1. Where we started
+## 1. The one problem this solves
 
-The cafes are paid for by whoever is standing there — Srinivas, Priyanka, Praveen —
-by UPI. The proof is a PhonePe / GPay screenshot dropped into a WhatsApp group
-("CG fin", "Krishna Kitchen Finance") with a one-line caption: *"10,000 interim
-payment to painter"*. Invoices come by email as PDFs, or as a photo of a bill in
-some other WhatsApp group. Nothing is totalled. Nothing says who paid. Praveen
-puts his own money in to keep the cafes running and cannot show it with proof.
+The whole business runs on WhatsApp because WhatsApp is easy. Payments,
+screenshots, "paid the painter", "vegetables 1 potato…" — all of it goes into
+groups, and none of it goes into one correct place where income and expenses
+can be managed. Concretely:
 
-FastPOS already knows the income side. Nobody knows the expense side.
+1. **Nobody has time to update the real spreadsheet.** The proof exists (a
+   screenshot in a group); the record never gets made.
+2. **Cash comes in and nobody wants to use the POS.** It is not being run
+   professionally, and telling people to be professional has not worked.
+
+This app does not try to fix the people. It accepts that WhatsApp is where
+things happen and makes the record *from* WhatsApp: forward the chat or the
+image to the app (or share at the moment of paying), and it is recorded, with
+proof, in one place. Once the record exists, the other problems (cash, POS use,
+who put in what) can be looked at one by one — later, and from real numbers.
+
+Scope: **three businesses only** (the cafes Praveen and Srinivas run). Not a
+product, not multi-tenant SaaS. Keep it small.
+
+Reading documents: **Ollama on the Hetzner box**, not Google Gemini — the data
+stays on our server. It is slower on CPU; that is accepted for three cafes.
 
 ## 2. The principle
 
@@ -117,7 +130,7 @@ Confirmers are a flag on the person (Praveen, Srinivas).
 with the same GitHub Actions shape as guhya-pos.
 
 - Models: Cafe, Person, Category, Invoice, LedgerEntry, Proof, ShareEvent, GroupPost.
-- `ledger/extraction/` — Gemini (default when a key is set), Ollama (opt-in), mock (tests).
+- `ledger/extraction/` — **Ollama on the Hetzner box (default)**, Gemini (only if explicitly chosen), mock (tests).
   One prompt, one JSON schema, classifies payment / invoice / other.
 - `ledger/dedup.py` — the match order above. `ledger/services.py::ingest()` — the one door.
 - Screens: sign-in, home (my entries), **/share/** (PWA share target + upload form),
@@ -158,7 +171,6 @@ launchd plist; heartbeat URL for a dead-man's switch.
 
 - "CG fin" and "Krishna Kitchen Finance": two cafes, or one cafe with two groups?
   (`seed_basic` assumes two; it is one line to change.)
-- Gemini (fast, paise per document) or Ollama (free, slow) as the default reader?
 - Which Mac runs the reconciler long term — laptop, or a spare Mac mini as an appliance?
 - Can any partner confirm another's entry, or Praveen only?
 

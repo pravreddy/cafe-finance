@@ -115,9 +115,10 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 API_TOKEN = os.environ.get("API_TOKEN", "")
 
 # --- Document AI (reads payment screenshots and invoices) ---
-# Provider: "auto" (Gemini if a key is set, else Ollama) | "gemini" | "ollama" | "mock".
+# Provider: "ollama" (DEFAULT — runs on the Hetzner box, data never leaves our
+# server) | "gemini" (only if explicitly set) | "mock" (tests) | "auto".
 # Same env names as guhya-pos so one .env can drive both.
-DOC_AI_PROVIDER = os.environ.get("DOC_AI_PROVIDER", "auto")
+DOC_AI_PROVIDER = os.environ.get("DOC_AI_PROVIDER", "ollama")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_TIMEOUT = int(os.environ.get("GEMINI_TIMEOUT", "120"))

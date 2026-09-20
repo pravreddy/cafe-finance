@@ -1,6 +1,6 @@
 # cafe-finance
 
-Income & expense ledger for the cafes, with **proof behind every rupee**.
+Income & expense ledger for three cafes, with **proof behind every rupee** — made *from* WhatsApp, because that is where the business actually runs.
 
 Not part of FastPOS. FastPOS owns sales; this project owns expenses, invoices,
 partner contributions and the evidence (payment screenshots, invoice PDFs) that
@@ -49,7 +49,7 @@ one or more payments (installments). Both arrive through the same door.
 
 ```bash
 cd server
-cp .env.example .env               # set GEMINI_API_KEY, or DOC_AI_PROVIDER=mock to try without AI
+cp .env.example .env               # Ollama on the box by default; DOC_AI_PROVIDER=mock to try without AI
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 USE_SQLITE=1 python manage.py migrate
 python manage.py seed_basic --with-users     # logins: praveen / srinivas / priyanka, password change-me
