@@ -61,7 +61,7 @@ jobs:
     env:
       IMAGE: ghcr.io/pravreddy/cafe-finance:${{ github.sha }}
       DJANGO_ENV: >-
-        -e DEBUG=1 -e SECRET_KEY=ci -e ALLOWED_HOSTS=* -e DOC_AI_PROVIDER=mock -e API_TOKEN=ci
+        -e DEBUG=1 -e SECRET_KEY=ci -e ALLOWED_HOSTS=* -e DOC_AI_PROVIDER=mock -e DOC_AI_SYNC=1 -e API_TOKEN=ci
         -e POSTGRES_DB=cf_test -e POSTGRES_USER=cf_test -e POSTGRES_PASSWORD=test_password
         -e POSTGRES_HOST=localhost -e POSTGRES_PORT=5432 -e MEDIA_ROOT=/tmp/media
     steps:

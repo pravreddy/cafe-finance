@@ -9,6 +9,16 @@
   <p class="muted" style="margin:12px 0 0">To add a payment: pay in PhonePe / GPay → <b>Share</b> → <b>Cafe Finance</b>. Or long-press an image in WhatsApp → Share → Cafe Finance. Or <a href="{% url 'ledger:share' %}">upload here</a>.</p>
 </div>
 
+{% if reading %}
+<h2>Being read ({{ reading|length }})</h2>
+<div class="card muted">Saved and queued. The reader on the server takes a little while per document; they will turn into entries below on their own.
+  {% for p in reading %}<div style="margin-top:6px">⏳ {{ p.original_name }} · {{ p.created_at|date:"H:i" }}</div>{% endfor %}</div>
+{% endif %}
+{% if failed %}
+<h2>Could not be read</h2>
+{% for p in failed %}<div class="card"><div>⚠ {{ p.original_name }} — {{ p.extraction_error|default:"unreadable" }}</div><a class="btn secondary small" href="{% url 'ledger:review' p.pk %}">Fill in by hand</a></div>{% endfor %}
+{% endif %}
+
 <h2>{% if me.can_confirm %}Latest entries{% else %}My entries{% endif %}</h2>
 {% for e in entries %}
 <div class="card">

@@ -119,6 +119,13 @@ API_TOKEN = os.environ.get("API_TOKEN", "")
 # server) | "gemini" (only if explicitly set) | "mock" (tests) | "auto".
 # Same env names as guhya-pos so one .env can drive both.
 DOC_AI_PROVIDER = os.environ.get("DOC_AI_PROVIDER", "ollama")
+
+# Reading a document is NOT request/response. Intake stores the file and
+# queues it; `manage.py process_queue` (the worker container) reads it with
+# Ollama however long that takes and updates the records. DOC_AI_SYNC=1 makes
+# intake process inline — for tests and laptop runs only.
+DOC_AI_SYNC = os.environ.get("DOC_AI_SYNC", "0") == "1"
+DOC_AI_MAX_ATTEMPTS = int(os.environ.get("DOC_AI_MAX_ATTEMPTS", "3"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_TIMEOUT = int(os.environ.get("GEMINI_TIMEOUT", "120"))

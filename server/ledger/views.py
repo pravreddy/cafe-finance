@@ -40,9 +40,12 @@ def home(request):
     my_month = (LedgerEntry.objects.filter(paid_by=me, status=LedgerEntry.Status.CONFIRMED, paid_on__gte=month)
                 .aggregate(s=Sum("amount"))["s"] or 0)
     pending = LedgerEntry.objects.filter(status__in=(LedgerEntry.Status.PENDING, LedgerEntry.Status.IMPORTED)).count()
+    reading = (Proof.objects.filter(state__in=(Proof.State.QUEUED, Proof.State.PROCESSING), shares__shared_by=me)
+               .distinct().order_by("created_at"))
+    failed = Proof.objects.filter(state=Proof.State.FAILED, shares__shared_by=me).distinct()[:10]
     return render(request, "ledger/home.html", {
         "me": me, "entries": entries, "my_month": my_month, "pending": pending,
-        "form": UploadForm(),
+        "reading": reading, "failed": failed, "form": UploadForm(),
     })
 
 
@@ -69,12 +72,14 @@ def share(request):
     results = []
     for f in files[:10]:
         raw = f.read()
-        results.append(services.ingest(
+        results.append(services.intake_or_ingest(
             raw, f.name, f.content_type or mimetypes.guess_type(f.name)[0] or "",
             origin=origin, channel=channel, shared_by=me, note=note,
         ))
     if len(results) == 1:
         messages.info(request, results[0].message)
+        if results[0].pending:
+            return redirect("ledger:home")          # nothing to review yet; the worker will read it
         return redirect("ledger:review", proof_pk=results[0].proof.pk)
     return render(request, "ledger/share_many.html", {"results": results})
 
@@ -117,6 +122,9 @@ def _initial_from(proof: Proof):
 def review(request, proof_pk):
     proof = get_object_or_404(Proof.objects.select_related("entry", "invoice"), pk=proof_pk)
     me = current_person(request)
+    if proof.state in (Proof.State.QUEUED, Proof.State.PROCESSING):
+        return render(request, "ledger/reading.html", {"proof": proof,
+                      "waiting": Proof.objects.filter(state=Proof.State.QUEUED).count()})
     if request.method == "POST":
         form = ReviewForm(request.POST)
         if form.is_valid():
@@ -213,10 +221,12 @@ def queue(request):
     invoices = Invoice.objects.filter(status=Invoice.Status.PENDING)
     open_invoices = Invoice.objects.filter(status__in=(Invoice.Status.OPEN, Invoice.Status.PART_PAID))
     unmatched = (GroupPost.objects.filter(matched_entry__isnull=True, matched_invoice__isnull=True, dismissed=False)
-                 .exclude(media_path="")[:100])
+                 .exclude(media_path="").exclude(proof__state__in=(Proof.State.QUEUED, Proof.State.PROCESSING))[:100])
+    reading = Proof.objects.filter(state__in=(Proof.State.QUEUED, Proof.State.PROCESSING)).count()
+    failed = Proof.objects.filter(state=Proof.State.FAILED).order_by("-created_at")[:20]
     return render(request, "ledger/queue.html", {
         "me": me, "pending": pending, "invoices": invoices, "open_invoices": open_invoices,
-        "unmatched": unmatched,
+        "unmatched": unmatched, "reading": reading, "failed": failed,
     })
 
 

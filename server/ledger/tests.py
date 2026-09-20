@@ -17,7 +17,7 @@ PNG_B = b"\x89PNG\r\n\x1a\n" + b"B" * 64
 PDF_A = b"%PDF-1.4 fake invoice bytes"
 
 
-@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k")
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
 class IngestTests(TestCase):
     def setUp(self):
         call_command("seed_basic", "--with-users", verbosity=0)
@@ -137,7 +137,7 @@ class IngestTests(TestCase):
         self.assertEqual(rev.reversal_of, e)
 
 
-@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k")
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
 class HttpTests(TestCase):
     def setUp(self):
         call_command("seed_basic", "--with-users", verbosity=0)
@@ -208,3 +208,77 @@ class HttpTests(TestCase):
         self.assertIn("share_target", self.c.get("/manifest.json").content.decode())
         self.assertEqual(self.c.get("/sw.js")["Service-Worker-Allowed"], "/")
         self.assertEqual(self.c.get("/ping").content, b"ok")
+
+
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=False)
+class QueueTests(TestCase):
+    """Intake never waits for the AI. The worker does the reading."""
+
+    def setUp(self):
+        call_command("seed_basic", "--with-users", verbosity=0)
+        self.srini = Person.objects.get(name="Srinivas")
+
+    def test_intake_is_immediate_and_worker_links_later(self):
+        r = services.intake(PNG_A, "pay_083414546430.png", "image/png", origin=Proof.Origin.APP_SHARE,
+                            channel=ShareEvent.Channel.APP_SHARE, shared_by=self.srini, note="painter")
+        self.assertTrue(r.pending)
+        self.assertEqual(r.proof.state, Proof.State.QUEUED)
+        self.assertIsNone(r.entry)
+        self.assertEqual(LedgerEntry.objects.count(), 0)
+        self.assertEqual(r.share.match_method, "pending")
+        # a second share of the same bytes while it is still queued: also waits
+        r2 = services.intake(PNG_A, "again.png", "image/png", origin=Proof.Origin.WHATSAPP_FORWARD,
+                             channel=ShareEvent.Channel.WHATSAPP_FORWARD, shared_by=self.srini)
+        self.assertEqual(r2.proof.pk, r.proof.pk)
+        self.assertEqual(Proof.objects.count(), 1)
+
+        call_command("process_queue", "--once", verbosity=0)
+
+        proof = Proof.objects.get(pk=r.proof.pk)
+        self.assertEqual(proof.state, Proof.State.DONE)
+        self.assertEqual(LedgerEntry.objects.count(), 1)
+        e = LedgerEntry.objects.get()
+        self.assertEqual(e.utr, "083414546430")
+        self.assertEqual(e.paid_by, self.srini)
+        shares = list(e.shares.order_by("shared_at"))
+        self.assertEqual(len(shares), 2)
+        self.assertEqual(shares[0].match_method, "new")
+        self.assertTrue(shares[1].was_duplicate)
+        # already-read bytes shared a third time: linked at intake, no AI, no queue
+        r3 = services.intake(PNG_A, "third.png", "image/png", origin=Proof.Origin.APP_SHARE,
+                             channel=ShareEvent.Channel.APP_SHARE, shared_by=self.srini)
+        self.assertFalse(r3.pending)
+        self.assertTrue(r3.duplicate)
+        self.assertEqual(e.shares.count(), 3)
+
+    def test_share_view_returns_at_once_and_review_waits(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        c = Client(); c.login(username="srinivas", password="change-me")
+        r = c.post("/share/", {"files": SimpleUploadedFile("pay_083414546430.png", PNG_A, content_type="image/png")})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r["Location"], "/")
+        proof = Proof.objects.get()
+        r = c.get(f"/review/{proof.pk}/")
+        self.assertContains(r, "being read")
+        r = c.get("/")
+        self.assertContains(r, "Being read")
+        call_command("process_queue", "--once", verbosity=0)
+        r = c.get(f"/review/{proof.pk}/")
+        self.assertContains(r, "Painter Raja")
+
+    def test_failed_extraction_retries_then_fails(self):
+        from unittest import mock
+        from ledger.extraction import ExtractionError
+        r = services.intake(PNG_A, "pay_1.png", "image/png", origin=Proof.Origin.APP_SHARE,
+                            channel=ShareEvent.Channel.APP_SHARE, shared_by=self.srini)
+        with mock.patch("ledger.services.extract", side_effect=ExtractionError("ollama down")):
+            with override_settings(DOC_AI_MAX_ATTEMPTS=2):
+                services.process_proof(Proof.objects.get(pk=r.proof.pk))
+                p = Proof.objects.get(pk=r.proof.pk)
+                self.assertEqual(p.state, Proof.State.QUEUED)     # retry scheduled
+                self.assertEqual(p.attempts, 1)
+                services.process_proof(p)
+                p.refresh_from_db()
+                self.assertEqual(p.state, Proof.State.FAILED)
+        self.assertEqual(LedgerEntry.objects.count(), 0)
+        self.assertEqual(p.shares.get().match_method, "none")

@@ -2,6 +2,11 @@
 {% block title %}Queue · Cafe Finance{% endblock %}
 {% block content %}
 <h1>Review queue</h1>
+{% if reading %}<div class="msg">⏳ {{ reading }} document(s) waiting for the reader.</div>{% endif %}
+{% if failed %}
+<h2>Could not be read ({{ failed|length }})</h2>
+{% for p in failed %}<div class="card"><div>⚠ {{ p.original_name }} · {{ p.get_origin_display }} · {{ p.extraction_error|default:"unreadable" }}</div><a class="btn secondary small" href="{% url 'ledger:review' p.pk %}">Fill in by hand</a></div>{% endfor %}
+{% endif %}
 
 <h2>Payments waiting ({{ pending|length }})</h2>
 {% for e in pending %}

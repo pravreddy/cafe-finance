@@ -1,0 +1,11 @@
+{% extends "ledger/base.html" %}
+{% block title %}Reading… · Cafe Finance{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="15">{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Still being read</h1>
+  {% if not proof.is_pdf %}<img class="proof" src="{% url 'ledger:proof_file' proof.pk %}" alt="proof">{% endif %}
+  <p class="muted" style="margin-top:10px">Saved and safe. The reader on the server is working through the queue ({{ waiting }} waiting); this page refreshes itself. You can close it — the entry will appear in your list when it is done.</p>
+  <a class="btn secondary" href="{% url 'ledger:home' %}">Back</a>
+</div>
+{% endblock %}

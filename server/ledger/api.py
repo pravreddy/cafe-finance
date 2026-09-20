@@ -59,7 +59,8 @@ def _cafe_for_group(group_name: str):
 
 def _result_json(r):
     return {
-        "proof_id": r.proof.pk, "doc_type": r.doc_type, "duplicate": r.duplicate,
+        "proof_id": r.proof.pk, "state": r.proof.state, "pending": r.pending,
+        "doc_type": r.doc_type, "duplicate": r.duplicate,
         "match_method": r.match_method,
         "entry_id": r.entry.pk if r.entry else None,
         "cf_tag": r.entry.cf_tag if r.entry else None,
@@ -77,7 +78,7 @@ def upload(request):
     if not f:
         return JsonResponse({"error": "file missing"}, status=400)
     cafe = Cafe.objects.filter(slug=request.POST.get("cafe", "")).first()
-    r = services.ingest(
+    r = services.intake_or_ingest(
         f.read(), f.name, f.content_type or "",
         origin=Proof.Origin.EMAIL, channel=ShareEvent.Channel.EMAIL,
         shared_by=_person_for(request.POST.get("sender", "")),
@@ -107,7 +108,7 @@ def reconcile(request):
     out = {"group_post_id": post.pk, "created": created}
     f = request.FILES.get("file")
     if f and post.proof_id is None:
-        r = services.ingest(
+        r = services.intake_or_ingest(
             f.read(), f.name, f.content_type or "",
             origin=Proof.Origin.WHATSAPP_GROUP, channel=ShareEvent.Channel.WHATSAPP_GROUP,
             shared_by=_person_for(post.sender, P.get("sender_jid", "")),

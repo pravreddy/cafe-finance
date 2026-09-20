@@ -299,13 +299,26 @@ class Proof(models.Model):
     extracted_json = models.JSONField(default=dict, blank=True)
     extracted_at = models.DateTimeField(null=True, blank=True)
     extraction_error = models.CharField(max_length=300, blank=True)
+
+    # Queue state. Intake stores the file and sets QUEUED; the worker
+    # (manage.py process_queue) reads it with the document AI, however long
+    # that takes, then links every waiting ShareEvent. Nothing blocks on it.
+    class State(models.TextChoices):
+        QUEUED = "queued", "Waiting to be read"
+        PROCESSING = "processing", "Being read"
+        DONE = "done", "Read"
+        FAILED = "failed", "Could not be read"
+
+    state = models.CharField(max_length=10, choices=State.choices, default=State.QUEUED, db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.get_kind_display()} {self.sha256[:8]}"
+        return f"{self.get_kind_display()} {self.sha256[:8]} ({self.state})"
 
     @property
     def is_pdf(self):
@@ -335,7 +348,9 @@ class ShareEvent(models.Model):
     channel = models.CharField(max_length=12, choices=Channel.choices)
     note = models.CharField(max_length=300, blank=True)   # caption / text that came with it
     was_duplicate = models.BooleanField(default=False)
-    match_method = models.CharField(max_length=20, blank=True)  # utr / txn_id / sha256 / cf_tag / amount_date_comment / new
+    match_method = models.CharField(max_length=20, blank=True)  # utr / txn_id / sha256 / cf_tag / amount_date_comment / new / pending
+    # What intake knew that the worker needs later: {"cafe_id": 1, "imported": true}
+    context = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-shared_at"]

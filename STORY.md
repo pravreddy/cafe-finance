@@ -80,6 +80,25 @@ that isn't shows up as "seen in WhatsApp, not in ledger" for a human to look
 at. The same script walks the full history once, so the old months get into
 the books without anyone re-posting anything.
 
+
+### Reading is not request/response
+
+Nobody waits for the AI. Sharing a proof stores the file and queues it — that
+takes milliseconds and is all the phone, the reconciler or the mail puller
+ever see. A separate **worker** (`manage.py process_queue`, its own container)
+picks queued proofs one by one, reads them with Ollama on the box however long
+that takes, and then updates the records: creates or matches the payment or
+invoice and links every share that was waiting on it. Failures retry with
+backoff; after three attempts the proof is marked *could not be read* and shows
+up for a human to fill in by hand. The phone shows "being read" until then.
+
+Why a table and not Kafka: three cafes produce a few dozen documents a day. A
+`state` column on Proof claimed with `SELECT … FOR UPDATE SKIP LOCKED` gives
+durability, retries, ordering and "what is waiting" in the admin with zero new
+infrastructure. If volume ever needs Kafka or Redis, only `claim_next()` changes;
+intake and processing stay the same. The final goal is the accounts being
+updated — not a fast response.
+
 ### Payments and invoices are different things
 
 A **payment** is money that moved (a UPI screenshot). An **invoice** is money
@@ -153,8 +172,6 @@ launchd plist; heartbeat URL for a dead-man's switch.
 - FastPOS income pull.
 - Real login for phones (username/password now; OTP or per-person link later).
 - The server-side compose/nginx stack in `avyangah-infra` and the DNS for `ledger.guhya.co.in`.
-- Background extraction (it runs inline in the request today; fine at cafe volume,
-  move to a queue if Gemini gets slow).
 - Reconciler schema verified against the installed WhatsApp version (`--probe` is the first step).
 - Capacitor wrap / iOS share extension (only if an iPhone appears).
 
