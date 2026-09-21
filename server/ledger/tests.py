@@ -282,3 +282,150 @@ class QueueTests(TestCase):
                 self.assertEqual(p.state, Proof.State.FAILED)
         self.assertEqual(LedgerEntry.objects.count(), 0)
         self.assertEqual(p.shares.get().match_method, "none")
+
+
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
+class Section9Tests(TestCase):
+    """funded_by / balance, month close, late booking, salaries, income."""
+
+    def setUp(self):
+        call_command("seed_basic", "--with-users", verbosity=0)
+        from .models import Cafe, Category
+        self.cafe = Cafe.objects.get(slug="cafegopala")
+        self.praveen = Person.objects.get(name="Praveen")
+        self.srini = Person.objects.get(name="Srinivas")
+        self.dhiren = Person.objects.get(name="Dhiren")
+        self.cat = lambda slug: Category.objects.get(slug=slug)
+
+    def _entry(self, amount, paid_by, funded_by="same", kind="expense", counterparty=None, cat="vegetables",
+               paid_on=date(2026, 9, 10), confirm=True, **kw):
+        e = LedgerEntry(kind=kind, cafe=self.cafe, amount=Decimal(amount), paid_on=paid_on, paid_by=paid_by,
+                        category=self.cat(cat) if cat else None, counterparty=counterparty,
+                        source=LedgerEntry.Source.MANUAL, created_by=paid_by, **kw)
+        e.funded_by = paid_by if funded_by == "same" else funded_by
+        e.save()
+        if confirm:
+            services.confirm_entry(e, self.praveen)
+        return e
+
+    def test_partner_balance_funded_by(self):
+        # Praveen gives Srinivas 50,000 to run the cafe
+        self._entry("50000", self.praveen, funded_by=self.praveen, kind="transfer", counterparty=self.srini, cat="partner-in")
+        # Srinivas spends 30,000 of it — Praveen's money, not Srinivas's contribution
+        self._entry("30000", self.srini, funded_by=self.praveen)
+        # Srinivas also spends 5,000 of his own
+        self._entry("5000", self.srini)
+        # Cafe till pays 2,000 — nobody's contribution
+        self._entry("2000", self.srini, funded_by=None)
+        # Cafe pays Srinivas back 3,000
+        self._entry("3000", self.praveen, funded_by=None, kind="transfer", counterparty=self.srini, cat="partner-out")
+        rows = {r["person"].name: r for r in services.partner_balance(self.cafe)}
+        self.assertEqual(rows["Praveen"]["put_in"], Decimal("50000"))
+        self.assertEqual(rows["Praveen"]["owed"], Decimal("50000"))
+        self.assertEqual(rows["Srinivas"]["put_in"], Decimal("5000"))
+        self.assertEqual(rows["Srinivas"]["settled"], Decimal("3000"))
+        self.assertEqual(rows["Srinivas"]["owed"], Decimal("2000"))
+        self.assertEqual(rows["Srinivas"]["holding"], Decimal("20000"))   # 50,000 received − 30,000 spent
+        self.assertEqual(rows["Srinivas"]["spent_for_cafe"], Decimal("35000"))
+        pnl = services.monthly_pnl(self.cafe, date(2026, 9, 1))
+        self.assertEqual(pnl["total_expense"], Decimal("37000"))          # transfers never in P&L
+        self.assertEqual(pnl["total_income"], Decimal("0"))
+
+    def test_funded_by_defaults_to_paid_by_for_expenses(self):
+        r = services.ingest(PNG_A, "pay_083414546430.png", "image/png", origin=Proof.Origin.APP_SHARE,
+                            channel=ShareEvent.Channel.APP_SHARE, shared_by=self.srini)
+        self.assertEqual(r.entry.funded_by, self.srini)          # shared payment: payer's own money by default
+        self.assertEqual(r.entry.booked_on, date(2026, 9, 14))
+        i = LedgerEntry.objects.create(cafe=self.cafe, amount=100, paid_on=date(2026, 9, 1), paid_by=self.srini,
+                                       category=self.cat("cash-sales"), income_source="cash")
+        self.assertEqual(i.kind, "income")   # kind follows the category
+
+    def test_month_close_two_confirmers_and_late_booking(self):
+        from .models import Period
+        e = self._entry("500", self.srini, paid_on=date(2026, 8, 20))
+        pending = self._entry("700", self.srini, paid_on=date(2026, 8, 21), confirm=False)
+        with self.assertRaises(ValueError):                       # something still pending
+            services.request_close(self.cafe, date(2026, 8, 1), self.praveen)
+        services.confirm_entry(pending, self.praveen)
+        p = services.request_close(self.cafe, date(2026, 8, 1), self.praveen)
+        self.assertFalse(p.is_closed)                             # first confirmer only requests
+        p = services.request_close(self.cafe, date(2026, 8, 1), self.praveen)
+        self.assertFalse(p.is_closed)                             # same person again: still not closed
+        p = services.request_close(self.cafe, date(2026, 8, 1), self.srini)
+        self.assertTrue(p.is_closed)
+        priyanka = Person.objects.get(name="Priyanka")
+        with self.assertRaises(PermissionError):
+            services.request_close(self.cafe, date(2026, 7, 1), priyanka)
+        # a late August proof turns up in September
+        late = self._entry("900", self.srini, paid_on=date(2026, 8, 25), confirm=False)
+        with self.assertRaises(services.PeriodClosed):
+            services.confirm_entry(late, self.praveen)
+        services.confirm_entry(late, self.praveen, late_ok=True)
+        late.refresh_from_db()
+        self.assertEqual(late.late_for, p)
+        self.assertEqual(late.booked_on, date.today())
+        self.assertEqual(services.monthly_pnl(self.cafe, date(2026, 8, 1))["total_expense"], Decimal("1200"))
+        # reversal of a closed-month row is booked today, original untouched
+        rev = services.reverse_entry(e, self.praveen, "wrong")
+        self.assertEqual(rev.booked_on, date.today())
+        e.refresh_from_db()
+        self.assertEqual(e.status, LedgerEntry.Status.CONFIRMED)
+
+    def test_salary_paid_in_pieces(self):
+        from .models import PayrollPeriod
+        pp = PayrollPeriod.objects.create(cafe=self.cafe, staff=self.dhiren, month=date(2026, 9, 1),
+                                          amount_owed=Decimal("15000"), advances=Decimal("2000"))
+        self.assertEqual(pp.outstanding, Decimal("13000"))
+        a = self._entry("5000", self.srini, cat="salary", confirm=False, payee_name="Dhiren", payroll=pp)
+        self.assertIn(pp, services.suggest_payroll(a))
+        services.confirm_entry(a, self.praveen)
+        pp.refresh_from_db()
+        self.assertEqual(pp.status, PayrollPeriod.Status.PART_PAID)
+        self.assertEqual(pp.outstanding, Decimal("8000"))
+        b = self._entry("8000", self.srini, cat="salary", payee_name="Dhiren", payroll=pp)
+        pp.refresh_from_db()
+        self.assertEqual(pp.status, PayrollPeriod.Status.PAID)
+        self.assertEqual(pp.outstanding, Decimal("0"))
+
+    def test_typed_in_cash_and_income_and_settle(self):
+        c = Client(); c.login(username="srinivas", password="change-me")
+        from .models import Category
+        r = c.post("/add/", {"kind": "expense", "cafe": self.cafe.pk, "amount": "500", "paid_on": "2026-09-12",
+                             "category": Category.objects.get(slug="vegetables").pk, "paid_by": self.srini.pk,
+                             "funded_by": "", "upi_app": "cash", "description": "market"})
+        self.assertEqual(r.status_code, 302, r.content[:300])
+        e = LedgerEntry.objects.get()
+        self.assertEqual(e.upi_app, "cash"); self.assertEqual(e.funded_by, self.srini); self.assertFalse(e.has_proof)
+        r = c.post("/add/", {"kind": "income", "cafe": self.cafe.pk, "amount": "12000", "paid_on": "2026-09-12",
+                             "paid_by": self.srini.pk, "income_source": "cash", "upi_app": "cash"})
+        self.assertEqual(r.status_code, 302, r.content[:300])
+        inc = LedgerEntry.objects.get(kind="income")
+        self.assertIsNone(inc.funded_by)
+        c2 = Client(); c2.login(username="praveen", password="change-me")
+        r = c2.get("/add/?settle=%d" % self.srini.pk)
+        self.assertContains(r, "Settling up with Srinivas")
+        r = c2.post("/add/", {"kind": "transfer", "cafe": self.cafe.pk, "amount": "3000", "paid_on": "2026-09-13",
+                              "paid_by": self.praveen.pk, "funded_by": "cafe", "counterparty": self.srini.pk,
+                              "upi_app": "bank", "category": Category.objects.get(slug="partner-out").pk})
+        self.assertEqual(r.status_code, 302, r.content[:300])
+        t = LedgerEntry.objects.get(kind="transfer")
+        self.assertIsNone(t.funded_by); self.assertEqual(t.counterparty, self.srini)
+        self.assertEqual(c2.get("/balance/").status_code, 200)
+        self.assertEqual(c2.get("/pnl/?cafe=%d&month=2026-09" % self.cafe.pk).status_code, 200)
+        self.assertEqual(c2.get("/periods/").status_code, 200)
+        self.assertEqual(c2.get("/payroll/").status_code, 200)
+
+    def test_failed_payment_cannot_be_confirmed_via_queue(self):
+        from unittest import mock
+        import json
+        from ledger.extraction import mock as m
+        failed = json.loads(m.generate(b"", "", "pay_083414546430.png"))
+        failed["payment"]["status"] = "failed"
+        with mock.patch("ledger.extraction.mock.generate", return_value=json.dumps(failed)):
+            r = services.ingest(PNG_A, "pay_083414546430.png", "image/png", origin=Proof.Origin.APP_SHARE,
+                                channel=ShareEvent.Channel.APP_SHARE, shared_by=self.srini)
+        e = r.entry
+        c = Client(); c.login(username="praveen", password="change-me")
+        c.post(f"/entries/{e.pk}/confirm/")
+        e.refresh_from_db()
+        self.assertEqual(e.status, LedgerEntry.Status.PENDING)

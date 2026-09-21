@@ -14,8 +14,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from . import dedup, services
-from .forms import ReviewForm, UploadForm
-from .models import Cafe, Category, GroupPost, Invoice, LedgerEntry, Person, Proof, ShareEvent
+from .forms import ManualEntryForm, ReviewForm, UploadForm
+from .models import Cafe, Category, GroupPost, Invoice, LedgerEntry, PayrollPeriod, Period, Person, Proof, ShareEvent
 
 
 def current_person(request) -> Person:
@@ -144,6 +144,14 @@ def review(request, proof_pk):
                 entry.upi_app = d["upi_app"] or LedgerEntry.UpiApp.OTHER
                 entry.utr = d["utr"] or None
                 entry.invoice = d["invoice"]
+                entry.payroll = d["payroll"]
+                fb = d.get("funded_by") or ""
+                entry.funded_by = None if fb == "cafe" else (Person.objects.filter(pk=fb).first() if fb else entry.paid_by)
+                conf = float((proof.extracted_json or {}).get("confidence") or 0)
+                if conf and conf < 0.7 and not d.get("retyped"):
+                    messages.error(request, "This was read with low confidence — please retype the amount and date and tick 'I checked these'.")
+                    form.add_error("retyped", "Tick to confirm you checked the amount and date.")
+                    return _render_review(request, proof, form, me)
                 if entry.utr and LedgerEntry.objects.filter(utr=entry.utr).exclude(pk=entry.pk).exists():
                     other = LedgerEntry.objects.get(utr=entry.utr)
                     messages.warning(request, f"That UTR is already on {other.cf_tag}. Linked your share there instead.")
@@ -151,6 +159,8 @@ def review(request, proof_pk):
                     proof.save(update_fields=["entry"])
                     return redirect("ledger:done", entry_pk=other.pk)
                 entry.save()
+                if entry.payroll_id:
+                    entry.payroll.refresh_status()
                 if proof.entry_id != entry.pk:
                     proof.entry, proof.invoice = entry, None
                     proof.kind = Proof.Kind.PAYMENT_SCREENSHOT
@@ -186,15 +196,27 @@ def review(request, proof_pk):
             messages.info(request, "Marked as not a money document.")
             return redirect("ledger:home")
     else:
-        form = ReviewForm(initial=_initial_from(proof))
+        init = _initial_from(proof)
+        if proof.entry:
+            init["funded_by"] = ("cafe" if proof.entry.funded_by_id is None and proof.entry.pk
+                                 else (str(proof.entry.funded_by_id) if proof.entry.funded_by_id != proof.entry.paid_by_id else ""))
+            init["payroll"] = proof.entry.payroll_id
+        form = ReviewForm(initial=init)
+    return _render_review(request, proof, form, me)
 
+
+def _render_review(request, proof, form, me):
     ctx = {"proof": proof, "form": form, "me": me,
            "cafes": Cafe.objects.filter(is_active=True),
            "categories": Category.objects.filter(is_active=True),
-           "people": Person.objects.all()}
+           "people": Person.objects.all(),
+           "partners": Person.objects.filter(role=Person.Role.PARTNER),
+           "low_confidence": 0 < float((proof.extracted_json or {}).get("confidence") or 0) < 0.7,
+           "failed_payment": ((proof.extracted_json or {}).get("payment") or {}).get("status") in ("failed", "pending")}
     if proof.entry:
         ctx["trail"] = proof.entry.shares.select_related("shared_by")
         ctx["invoice_suggestions"] = dedup.suggest_invoices(proof.entry)
+        ctx["payroll_suggestions"] = services.suggest_payroll(proof.entry)
     elif proof.invoice:
         ctx["trail"] = proof.invoice.shares.select_related("shared_by")
     return render(request, "ledger/review.html", ctx)
@@ -237,16 +259,26 @@ def entry_action(request, entry_pk, action):
     entry = get_object_or_404(LedgerEntry, pk=entry_pk)
     if not me.can_confirm:
         return HttpResponse(status=403)
-    if action == "confirm":
-        services.confirm_entry(entry, me)
-        messages.success(request, f"Confirmed {entry.cf_tag}.")
+    if action in ("confirm", "confirm_late"):
+        pay = ((entry.proofs.first().extracted_json if entry.proofs.exists() else {}) or {}).get("payment") or {}
+        if pay.get("status") in ("failed", "pending"):
+            messages.error(request, f"{entry.cf_tag} is a {pay['status']} payment — attach a success screenshot first.")
+            return redirect(request.POST.get("next") or "ledger:queue")
+        try:
+            services.confirm_entry(entry, me, late_ok=(action == "confirm_late"))
+            messages.success(request, f"Confirmed {entry.cf_tag}" + (" (booked late, today)." if entry.late_for_id else "."))
+        except services.PeriodClosed as e:
+            messages.error(request, f"{e}. Use 'Confirm as late' to book it in the current month.")
     elif action == "reject":
         entry.status = LedgerEntry.Status.REJECTED
         entry.save(update_fields=["status"])
         messages.info(request, f"Rejected {entry.cf_tag}.")
     elif action == "reverse":
-        rev = services.reverse_entry(entry, me, request.POST.get("reason", "")[:200])
-        messages.success(request, f"Reversed {entry.cf_tag} with {rev.cf_tag}.")
+        try:
+            rev = services.reverse_entry(entry, me, request.POST.get("reason", "")[:200])
+            messages.success(request, f"Reversed {entry.cf_tag} with {rev.cf_tag}.")
+        except services.PeriodClosed as e:
+            messages.error(request, str(e))
     else:
         raise Http404
     return redirect(request.POST.get("next") or "ledger:queue")
@@ -313,3 +345,141 @@ def manifest(request):
 
 def offline(request):
     return render(request, "ledger/offline.html")
+
+
+# ------------------------------------------------------------------ typed-in entries (9.1 / 9.4 / 9.6)
+
+@login_required
+def add_entry(request):
+    me = current_person(request)
+    if request.method == "POST":
+        form = ManualEntryForm(request.POST, request.FILES)
+        if form.is_valid():
+            d = form.cleaned_data
+            fb = d.get("funded_by") or ""
+            paid_by = d["paid_by"] or me
+            entry = LedgerEntry(
+                kind=d["kind"], cafe=d["cafe"], amount=d["amount"], paid_on=d["paid_on"],
+                category=d["category"], paid_by=paid_by,
+                funded_by=None if fb == "cafe" else (Person.objects.filter(pk=fb).first() if fb else (paid_by if d["kind"] != "income" else None)),
+                counterparty=d["counterparty"], income_source=d["income_source"] or "",
+                payee_name=d["payee_name"], description=d["description"],
+                upi_app=d["upi_app"] or LedgerEntry.UpiApp.CASH,
+                source=LedgerEntry.Source.MANUAL, status=LedgerEntry.Status.PENDING, created_by=me,
+            )
+            if d["kind"] == "transfer" and fb == "" and d["counterparty"] and d["counterparty"].pk == paid_by.pk:
+                entry.funded_by = None   # cafe paying a partner back = settlement
+            entry.save()
+            photo = d.get("photo")
+            if photo:
+                proof, _ = services.store_proof(photo.read(), photo.name, photo.content_type or "", Proof.Origin.UPLOAD)
+                proof.entry, proof.kind, proof.state = entry, Proof.Kind.PAYMENT_SCREENSHOT, Proof.State.DONE
+                proof.save(update_fields=["entry", "kind", "state"])
+                ShareEvent.objects.create(proof=proof, entry=entry, shared_by=me, channel=ShareEvent.Channel.MANUAL,
+                                          match_method="new", note=d["description"])
+            messages.success(request, f"Saved {entry.cf_tag} — a confirmer will check it.")
+            return redirect("ledger:done", entry_pk=entry.pk)
+    else:
+        init = {"paid_on": timezone.localdate(), "cafe": me.default_cafe_id, "paid_by": me.pk}
+        if request.GET.get("settle"):
+            p = Person.objects.filter(pk=request.GET["settle"]).first()
+            init.update({"kind": "transfer", "counterparty": p.pk if p else None, "funded_by": "cafe",
+                         "category": Category.objects.filter(slug="partner-out").first(),
+                         "description": f"Settling up with {p.name}" if p else "", "upi_app": "bank"})
+        form = ManualEntryForm(initial=init)
+    return render(request, "ledger/add.html", {"form": form, "me": me,
+                  "cafes": Cafe.objects.filter(is_active=True), "categories": Category.objects.filter(is_active=True),
+                  "people": Person.objects.all(), "partners": Person.objects.filter(role=Person.Role.PARTNER)})
+
+
+# ------------------------------------------------------------------ balance (9.2 / 9.4) and P&L
+
+@login_required
+def balance(request):
+    me = current_person(request)
+    if me.role != Person.Role.PARTNER:
+        messages.error(request, "Balances are for partners.")
+        return redirect("ledger:home")
+    cafe = Cafe.objects.filter(pk=request.GET.get("cafe")).first()
+    rows = services.partner_balance(cafe)
+    return render(request, "ledger/balance.html", {"rows": rows, "cafe": cafe,
+                  "cafes": Cafe.objects.filter(is_active=True), "me": me})
+
+
+@login_required
+def pnl(request):
+    me = current_person(request)
+    if me.role != Person.Role.PARTNER:
+        return redirect("ledger:home")
+    cafes = Cafe.objects.filter(is_active=True)
+    cafe = Cafe.objects.filter(pk=request.GET.get("cafe")).first() or cafes.first()
+    try:
+        month = timezone.datetime.strptime(request.GET.get("month", ""), "%Y-%m").date()
+    except ValueError:
+        month = timezone.localdate().replace(day=1)
+    data = services.monthly_pnl(cafe, month) if cafe else None
+    return render(request, "ledger/pnl.html", {"cafe": cafe, "cafes": cafes, "month": month, "data": data, "me": me})
+
+
+# ------------------------------------------------------------------ periods (9.8)
+
+@login_required
+def periods(request):
+    me = current_person(request)
+    if not me.can_confirm:
+        return redirect("ledger:home")
+    cafes = Cafe.objects.filter(is_active=True)
+    today = timezone.localdate().replace(day=1)
+    months = []
+    m = today
+    for _ in range(12):
+        months.append(m)
+        m = (m.replace(year=m.year - 1, month=12) if m.month == 1 else m.replace(month=m.month - 1))
+    existing = {(p.cafe_id, p.month): p for p in Period.objects.filter(cafe__in=cafes)}
+    grid = [{"cafe": c, "months": [{"month": mm, "period": existing.get((c.pk, mm))} for mm in months]} for c in cafes]
+    return render(request, "ledger/periods.html", {"grid": grid, "me": me})
+
+
+@login_required
+@require_POST
+def period_close(request, cafe_pk, ym):
+    me = current_person(request)
+    cafe = get_object_or_404(Cafe, pk=cafe_pk)
+    month = timezone.datetime.strptime(ym, "%Y-%m").date()
+    try:
+        p = services.request_close(cafe, month, me)
+        if p.is_closed:
+            messages.success(request, f"{cafe} {month:%B %Y} is closed.")
+        else:
+            messages.info(request, f"Close requested by {p.close_requested_by}. A second confirmer must close it.")
+    except (PermissionError, ValueError) as e:
+        messages.error(request, str(e) or "Not allowed.")
+    return redirect("ledger:periods")
+
+
+# ------------------------------------------------------------------ payroll (9.3)
+
+@login_required
+def payroll(request):
+    me = current_person(request)
+    if me.role != Person.Role.PARTNER:
+        return redirect("ledger:home")
+    if request.method == "POST" and me.can_confirm:
+        try:
+            staff = Person.objects.get(pk=request.POST.get("staff"))
+            cafe = Cafe.objects.get(pk=request.POST.get("cafe"))
+            month = timezone.datetime.strptime(request.POST.get("month", ""), "%Y-%m").date()
+            pp, created = PayrollPeriod.objects.update_or_create(
+                cafe=cafe, staff=staff, month=month,
+                defaults={"amount_owed": request.POST.get("amount_owed") or 0,
+                          "advances": request.POST.get("advances") or 0,
+                          "notes": request.POST.get("notes", "")[:300]})
+            pp.refresh_status()
+            messages.success(request, f"{'Added' if created else 'Updated'} {pp}.")
+        except (Person.DoesNotExist, Cafe.DoesNotExist, ValueError) as e:
+            messages.error(request, f"Could not save: {e}")
+        return redirect("ledger:payroll")
+    rows = PayrollPeriod.objects.select_related("staff", "cafe").all()[:100]
+    return render(request, "ledger/payroll.html", {"rows": rows, "me": me,
+                  "staff": Person.objects.filter(role=Person.Role.STAFF), "cafes": Cafe.objects.filter(is_active=True),
+                  "this_month": timezone.localdate().strftime("%Y-%m")})

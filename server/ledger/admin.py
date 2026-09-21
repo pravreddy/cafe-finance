@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Cafe, Category, GroupPost, Invoice, LedgerEntry, Person, Proof, ShareEvent
+from .models import Cafe, Category, GroupPost, Invoice, LedgerEntry, PayrollPeriod, Period, Person, Proof, ShareEvent
 
 
 @admin.register(Cafe)
@@ -38,8 +38,8 @@ class ShareInline(admin.TabularInline):
 
 @admin.register(LedgerEntry)
 class LedgerEntryAdmin(admin.ModelAdmin):
-    list_display = ("cf_tag", "paid_on", "amount", "payee_name", "category", "cafe", "paid_by", "status", "utr")
-    list_filter = ("status", "cafe", "category", "source", "upi_app")
+    list_display = ("cf_tag", "kind", "paid_on", "booked_on", "amount", "payee_name", "category", "cafe", "paid_by", "funded_by", "status", "utr")
+    list_filter = ("kind", "status", "cafe", "category", "source", "upi_app")
     search_fields = ("cf_tag", "utr", "txn_id", "payee_name", "description")
     date_hierarchy = "paid_on"
     inlines = [ProofInline, ShareInline]
@@ -72,3 +72,15 @@ class GroupPostAdmin(admin.ModelAdmin):
     list_display = ("group_name", "sender", "sent_at", "caption", "matched_entry", "match_method", "dismissed")
     list_filter = ("group_name", "dismissed")
     search_fields = ("caption", "sender")
+
+
+@admin.register(Period)
+class PeriodAdmin(admin.ModelAdmin):
+    list_display = ("cafe", "month", "close_requested_by", "closed_by", "closed_at")
+    list_filter = ("cafe",)
+
+
+@admin.register(PayrollPeriod)
+class PayrollPeriodAdmin(admin.ModelAdmin):
+    list_display = ("staff", "cafe", "month", "amount_owed", "advances", "status")
+    list_filter = ("cafe", "status")

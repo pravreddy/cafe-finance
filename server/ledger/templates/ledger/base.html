@@ -12,7 +12,7 @@
 :root{--g:#1f6f4a;--bg:#f6f7f5;--card:#fff;--ink:#1b1b1b;--muted:#6b6f6a;--line:#e3e6e1;--warn:#b7791f;--bad:#b42318;--ok:#1f6f4a}
 *{box-sizing:border-box}body{margin:0;font:16px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
 header{background:var(--g);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:2}
-header a{color:#fff;text-decoration:none;font-weight:600}header .sp{flex:1}header nav a{margin-left:12px;font-weight:500;opacity:.92}
+header a{color:#fff;text-decoration:none;font-weight:600}header .sp{flex:1}header nav a{margin-left:10px;font-weight:500;opacity:.92;font-size:14px}
 main{max-width:720px;margin:0 auto;padding:16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
 h1{font-size:20px;margin:0 0 10px}h2{font-size:16px;margin:16px 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
@@ -43,8 +43,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;b
   <span class="sp"></span>
   {% if user.is_authenticated %}
   <nav>
-    <a href="{% url 'ledger:share' %}">＋ Add</a>
-    <a href="{% url 'ledger:invoices' %}">Invoices</a>
+    <a href="{% url 'ledger:share' %}">＋ Share</a>
+    <a href="{% url 'ledger:add' %}">Type</a>
+    {% if user.person.role == "partner" %}<a href="{% url 'ledger:balance' %}">Balance</a><a href="{% url 'ledger:pnl' %}">Month</a>{% endif %}
     {% if user.person.can_confirm %}<a href="{% url 'ledger:queue' %}">Queue</a>{% endif %}
   </nav>
   {% endif %}

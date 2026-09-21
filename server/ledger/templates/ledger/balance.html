@@ -1,0 +1,14 @@
+{% extends "ledger/base.html" %}
+{% block title %}Partner balance · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Partner balance{% if cafe %} · {{ cafe.name }}{% endif %}</h1>
+<div class="row" style="margin-bottom:12px"><a class="btn secondary small" href="{% url 'ledger:balance' %}">All cafes</a>{% for c in cafes %}<a class="btn secondary small" href="?cafe={{ c.pk }}">{{ c.name }}</a>{% endfor %}</div>
+<p class="muted">Confirmed rows only. "Put in" = own money spent for the cafe + money handed to the cafe or a partner. "Holding" = money received from others not yet spent. "Settled" = paid back by the cafe.</p>
+{% for r in rows %}
+<div class="card">
+  <div class="row"><b>{{ r.person.name }}</b><span class="sp" style="flex:1"></span><span class="amt">{% if r.owed >= 0 %}owed ₹{{ r.owed|floatformat:0 }}{% else %}owes ₹{{ r.owed|floatformat:0|slice:"1:" }}{% endif %}</span></div>
+  <div class="muted">put in ₹{{ r.put_in|floatformat:0 }} · settled ₹{{ r.settled|floatformat:0 }} · holding ₹{{ r.holding|floatformat:0 }} · spent for cafe ₹{{ r.spent_for_cafe|floatformat:0 }}</div>
+  {% if me.can_confirm and r.owed > 0 %}<a class="btn small" style="margin-top:8px" href="{% url 'ledger:add' %}?settle={{ r.person.pk }}">Settle</a>{% endif %}
+</div>
+{% empty %}<div class="card muted">No confirmed partner money yet.</div>{% endfor %}
+{% endblock %}

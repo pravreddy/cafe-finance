@@ -10,6 +10,8 @@
   {% endif %}
   {% if proof.extraction_error %}<div class="msg warning" style="margin-top:8px">Couldn't read this automatically: {{ proof.extraction_error }}. Fill it in by hand.</div>{% endif %}
   {% if proof.extracted_json.confidence %}<div class="muted" style="margin-top:6px">Read with {{ proof.extracted_json.confidence|floatformat:2 }} confidence — check the numbers.</div>{% endif %}
+  {% if low_confidence %}<div class="msg warning" style="margin-top:8px">Low confidence — please retype the amount and date, then tick "I checked these".</div>{% endif %}
+  {% if failed_payment %}<div class="msg error" style="margin-top:8px">This looks like a failed / pending payment. It will be kept as proof but cannot be confirmed until a success screenshot is attached.</div>{% endif %}
 </div>
 
 <form method="post" class="card" id="rf">{% csrf_token %}
@@ -45,10 +47,24 @@
     <select name="paid_by">
       {% for p in people %}<option value="{{ p.pk }}" {% if form.paid_by.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% elif not form.paid_by.value and p.pk == me.pk %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
     </select>
+    <label>Whose money?</label>
+    <select name="funded_by">
+      <option value="" {% if not form.funded_by.value %}selected{% endif %}>Same as paid by (own money)</option>
+      <option value="cafe" {% if form.funded_by.value == "cafe" %}selected{% endif %}>The cafe's own cash / account</option>
+      {% for p in partners %}<option value="{{ p.pk }}" {% if form.funded_by.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}'s money</option>{% endfor %}
+    </select>
     <div class="row">
       <div style="flex:1"><label>App</label>{{ form.upi_app }}</div>
       <div style="flex:1"><label>UTR</label>{{ form.utr }}</div>
     </div>
+    {% if low_confidence %}<label><input type="checkbox" name="retyped" value="1"> I checked the amount and date</label>{{ form.retyped.errors }}{% endif %}
+    {% if payroll_suggestions %}
+    <label>Is this a salary payment?</label>
+    <div class="chips">
+      <label><input type="radio" name="payroll" value="" {% if not form.payroll.value %}checked{% endif %}><span>No</span></label>
+      {% for pp in payroll_suggestions %}<label><input type="radio" name="payroll" value="{{ pp.pk }}" {% if form.payroll.value|stringformat:"s" == pp.pk|stringformat:"s" %}checked{% endif %}><span>{{ pp.staff.name }} {{ pp.month|date:"M Y" }} · left ₹{{ pp.outstanding|floatformat:0 }}</span></label>{% endfor %}
+    </div>
+    {% elif form.payroll.value %}<input type="hidden" name="payroll" value="{{ form.payroll.value }}">{% endif %}
     {% if invoice_suggestions %}
     <label>Is this paying an invoice?</label>
     <div class="chips">

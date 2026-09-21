@@ -1,0 +1,26 @@
+{% extends "ledger/base.html" %}
+{% block title %}Salaries · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Salaries</h1>
+{% if me.can_confirm %}
+<form method="post" class="card">{% csrf_token %}
+  <h2 style="margin-top:0">Owed this month</h2>
+  <div class="row">
+    <div style="flex:1"><label>Staff</label><select name="staff">{% for p in staff %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select></div>
+    <div style="flex:1"><label>Cafe</label><select name="cafe">{% for c in cafes %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>Month</label><input type="month" name="month" value="{{ this_month }}"></div>
+    <div style="flex:1"><label>Amount owed (₹)</label><input type="number" name="amount_owed" step="1" required></div>
+    <div style="flex:1"><label>Advances already given</label><input type="number" name="advances" step="1" value="0"></div>
+  </div>
+  <label>Notes</label><input type="text" name="notes">
+  <div style="margin-top:12px"><button class="btn">Save</button></div>
+  <p class="muted">Staff are people with role "staff" (add in the admin). Salary payments shared as screenshots get matched here on the review screen.</p>
+</form>
+{% endif %}
+{% for r in rows %}
+<div class="card"><div class="row"><b>{{ r.staff.name }}</b><span>{{ r.month|date:"F Y" }} · {{ r.cafe.name }}</span><span class="pill {{ r.status }}">{{ r.get_status_display }}</span></div>
+<div class="muted">owed ₹{{ r.amount_owed|floatformat:0 }} · advances ₹{{ r.advances|floatformat:0 }} · paid (confirmed) ₹{{ r.paid_total|floatformat:0 }} · <b>left ₹{{ r.outstanding|floatformat:0 }}</b></div></div>
+{% empty %}<div class="card muted">No salary periods yet.</div>{% endfor %}
+{% endblock %}

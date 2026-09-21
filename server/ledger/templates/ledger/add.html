@@ -1,0 +1,54 @@
+{% extends "ledger/base.html" %}
+{% block title %}Type it in · Cafe Finance{% endblock %}
+{% block content %}
+<form method="post" class="card" id="af" enctype="multipart/form-data">{% csrf_token %}
+  <h1>Type it in</h1>
+  <p class="muted">For cash with no screenshot, money between partners, or income that isn't in the POS.</p>
+  {{ form.non_field_errors }}
+  <label>What is it?</label>
+  <div class="chips">
+    {% for val, lab in form.fields.kind.choices %}<label><input type="radio" name="kind" value="{{ val }}" {% if form.kind.value == val %}checked{% endif %}><span>{{ lab }}</span></label>{% endfor %}
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>Amount (₹)</label>{{ form.amount }}{{ form.amount.errors }}</div>
+    <div style="flex:1"><label>Date</label>{{ form.paid_on }}{{ form.paid_on.errors }}</div>
+  </div>
+  <label>Cafe</label>
+  <select name="cafe">{% for c in cafes %}<option value="{{ c.pk }}" {% if form.cafe.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  {{ form.cafe.errors }}
+
+  <div id="k-expense">
+    <label>Category</label>
+    <div class="chips">{% for c in categories %}{% if c.kind == "expense" %}<label><input type="radio" name="category" value="{{ c.pk }}" {% if form.category.value|stringformat:"s" == c.pk|stringformat:"s" %}checked{% endif %}><span>{{ c.name }}</span></label>{% endif %}{% endfor %}</div>
+    {{ form.category.errors }}
+    <label>Paid to</label>{{ form.payee_name }}
+  </div>
+  <div id="k-income">
+    <label>Where from?</label>{{ form.income_source }}{{ form.income_source.errors }}
+  </div>
+  <div id="k-transfer">
+    <label>Received by (partner)</label>
+    <select name="counterparty"><option value="">—</option>{% for p in partners %}<option value="{{ p.pk }}" {% if form.counterparty.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+    {{ form.counterparty.errors }}
+    <input type="hidden" name="category" value="" disabled>
+  </div>
+
+  <label>Paid by</label>
+  <select name="paid_by">{% for p in people %}<option value="{{ p.pk }}" {% if form.paid_by.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+  <label>Whose money?</label>
+  <select name="funded_by">
+    <option value="" {% if not form.funded_by.value %}selected{% endif %}>Same person's own money</option>
+    <option value="cafe" {% if form.funded_by.value == "cafe" %}selected{% endif %}>The cafe's own cash / account</option>
+    {% for p in partners %}<option value="{{ p.pk }}" {% if form.funded_by.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}'s money</option>{% endfor %}
+  </select>
+  <div class="row"><div style="flex:1"><label>How</label>{{ form.upi_app }}</div></div>
+  <label>Comment</label>{{ form.description }}
+  <label>Photo of bill / receipt (optional)</label><input type="file" name="photo" accept="image/*,application/pdf">
+  <div class="sticky"><button class="btn" type="submit">Save</button> <a class="btn secondary" href="{% url 'ledger:home' %}">Cancel</a></div>
+</form>
+{% endblock %}
+{% block script %}<script>
+(function(){const f=document.getElementById('af');function sync(){const v=(f.querySelector('input[name=kind]:checked')||{}).value;
+['expense','income','transfer'].forEach(k=>{const el=document.getElementById('k-'+k);el.style.display=v===k?'':'none';el.querySelectorAll('input,select').forEach(i=>{if(i.name==='category'&&i.type==='hidden'){i.disabled=v!=='transfer';}});});}
+f.querySelectorAll('input[name=kind]').forEach(r=>r.addEventListener('change',sync));sync();})();
+</script>{% endblock %}

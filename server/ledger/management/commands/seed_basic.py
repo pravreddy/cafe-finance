@@ -14,6 +14,8 @@ CAFES = [
     # name, slug, fastpos tenant, WhatsApp groups the reconciler should map here
     ("Cafe Gopala", "cafegopala", "cafegopala", ["CG fin"]),
     ("Krishna Kitchen", "krishna-kitchen", "", ["Krishna Kitchen Finance"]),
+    # third business — rename in the admin once decided (scope: three cafes only)
+    ("Cafe 3 (rename me)", "cafe-3", "", []),
 ]
 
 CATEGORIES = [
@@ -43,6 +45,7 @@ PEOPLE = [
     ("Praveen", "partner", True, "cafegopala"),
     ("Srinivas", "partner", True, "cafegopala"),
     ("Priyanka", "partner", False, "cafegopala"),
+    ("Dhiren", "staff", False, "cafegopala"),
 ]
 
 

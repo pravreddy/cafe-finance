@@ -168,7 +168,7 @@ launchd plist; heartbeat URL for a dead-man's switch.
 
 ## 6. What is not built yet
 
-- Reports (P&L, partner balance) — models carry everything needed; no screens.
+- Reports: first cut built (/pnl/ month P&L, /balance/ partner balance); FastPOS income pull, accountant export still pending.
 - FastPOS income pull.
 - Real login for phones (username/password now; OTP or per-person link later).
 - The server-side compose/nginx stack in `avyangah-infra` and the DNS for `ledger.guhya.co.in`.
@@ -197,37 +197,37 @@ launchd plist; heartbeat URL for a dead-man's switch.
 
 Each has a one-line acceptance rule. **[model]** = changes the data model; **[screen]** = screens/rules only.
 
-### 9.1 Cash payments — money with no screenshot  [screen]
+### 9.1 Cash payments — money with no screenshot  [screen] ✅ built (/add/)
 *As Srinivas, I paid ₹500 cash for vegetables and have only a handwritten bill (or nothing).*
 Rule: a "Type it in" screen creates a LedgerEntry with `upi_app=cash`, optional photo of the bill, and `has_proof=false` surfaces on the Unproven report. Cash entries need a confirmer like everything else.
 
-### 9.2 Partner money in / out — whose money was it?  [model]
+### 9.2 Partner money in / out — whose money was it?  [model] ✅ built (funded_by, /balance/)
 *As Praveen, I transferred ₹50,000 to Srinivas to run the cafe; his later payments from that money are on my behalf.*
 Rule: add `funded_by` (Person) next to `paid_by`. A transfer between partners is a `transfer` row, never an expense. Partner balance = money funded − expenses paid with own money − settlements received. `funded_by` defaults to `paid_by`; the review screen asks "whose money?" only when a transfer to that person is open.
 
-### 9.3 Salaries — owed per person per month, paid in pieces  [model]
+### 9.3 Salaries — owed per person per month, paid in pieces  [model] ✅ built (PayrollPeriod, /payroll/)
 *As Srinivas, I paid Dhiren ₹5,000 today; the rest is calculated tomorrow.*
 Rule: a `PayrollPeriod` (staff person, month, amount owed, advances) works like an Invoice: many LedgerEntries settle it, status open → part_paid → paid. "Salary installment to X" payments get the open period suggested exactly as vendor payments get invoices suggested.
 
-### 9.4 Settling up between partners  [screen]
+### 9.4 Settling up between partners  [screen] ✅ built (Settle button → transfer)
 *As the cafe, we paid Srinivas back the ₹30,000 he was owed.*
 Rule: a settlement is a `transfer` row that reduces the receiver's balance; it never appears as an expense and never in the P&L. The balance screen has a "Settle" button that pre-fills it.
 
 ### 9.5 Refunds, failed payments, paid-twice  [screen]
 Rule: a receipt with `status=failed` is stored as proof but never creates a countable entry. "Mark as refunded" attaches the refund screenshot and creates the reversal row (already in code) — the original is never edited. UTR of the refund is stored on the reversal.
 
-### 9.6 Income that is not the POS  [model]
+### 9.6 Income that is not the POS  [model] ✅ built (kind=income, income_source; POS pull still pending)
 *Cash sales on a day the POS was off; a catering advance; Swiggy/Zomato weekly settlement as one lump.*
 Rule: an `IncomeEntry` (or LedgerEntry with `kind=income`) with source (pos | cash | catering | swiggy | zomato | other). POS days come from the FastPOS API and are never hand-editable; manual income on a POS day warns (same guard as FastPOS Finance). Platform settlements are one row per payout with the payout reference.
 
 ### 9.7 Who sees what  [screen]
 Rule: partners see everything; staff see only their own entries and never balances; a person marked inactive keeps their history but cannot sign in. Confirmers cannot confirm their own entries when another confirmer exists (four-eyes) — switchable per cafe.
 
-### 9.8 Month close  [model]
+### 9.8 Month close  [model] ✅ built (Period, two confirmers, late booking, /periods/)
 *In October, Praveen and Srinivas agree September's numbers; nothing in September may move afterwards.*
 Rule: a `Period` (cafe, month, closed_at, closed_by). Confirming or reversing into a closed period is refused; late proofs land in the current open period with `belongs_to` pointing at the closed month so the report can show "late for September". Closing needs both confirmers.
 
-### 9.9 Failure stories the AI will cause  [screen]
+### 9.9 Failure stories the AI will cause  [screen] ◐ low-confidence retype + failed-payment block built; invoice rounding rule pending
 - Confidence below 0.7 → amount and date must be retyped, not just accepted.
 - A receipt read as `failed`/`pending` cannot be confirmed until a success screenshot is attached.
 - Two photos of the same invoice with totals differing by rounding: invoice number match wins; the second total is shown as "differs by ₹x" for a human.

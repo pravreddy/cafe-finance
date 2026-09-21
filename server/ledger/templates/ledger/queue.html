@@ -2,6 +2,7 @@
 {% block title %}Queue · Cafe Finance{% endblock %}
 {% block content %}
 <h1>Review queue</h1>
+<div class="row" style="margin-bottom:10px"><a class="btn secondary small" href="{% url 'ledger:invoices' %}">Invoices</a><a class="btn secondary small" href="{% url 'ledger:payroll' %}">Salaries</a><a class="btn secondary small" href="{% url 'ledger:periods' %}">Month close</a></div>
 {% if reading %}<div class="msg">⏳ {{ reading }} document(s) waiting for the reader.</div>{% endif %}
 {% if failed %}
 <h2>Could not be read ({{ failed|length }})</h2>
@@ -18,6 +19,7 @@
     <span class="tag">{{ e.cf_tag }}{% if e.utr %} · UTR {{ e.utr }}{% endif %}</span>
     {% with p=e.proofs.first %}{% if p %}<a class="btn secondary small" href="{% url 'ledger:review' p.pk %}">Open</a>{% endif %}{% endwith %}
     <form method="post" action="{% url 'ledger:entry_action' e.pk 'confirm' %}" style="display:inline">{% csrf_token %}<button class="btn small" {% if not e.category or not e.cafe %}title="Set category and cafe first"{% endif %}>Confirm</button></form>
+    <form method="post" action="{% url 'ledger:entry_action' e.pk 'confirm_late' %}" style="display:inline">{% csrf_token %}<button class="btn secondary small" title="If that month is closed, book it today">Confirm as late</button></form>
     <form method="post" action="{% url 'ledger:entry_action' e.pk 'reject' %}" style="display:inline">{% csrf_token %}<button class="btn danger small">Reject</button></form>
   </div>
 </div>

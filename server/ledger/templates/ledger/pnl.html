@@ -1,0 +1,15 @@
+{% extends "ledger/base.html" %}
+{% block title %}P&L · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Month · {{ cafe.name }} · {{ month|date:"F Y" }}</h1>
+<form method="get" class="row" style="margin-bottom:12px">
+  <select name="cafe">{% for c in cafes %}<option value="{{ c.pk }}" {% if c.pk == cafe.pk %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  <input type="month" name="month" value="{{ month|date:'Y-m' }}"><button class="btn small">Show</button>
+</form>
+{% if data %}
+<div class="card"><div class="row"><span>Income <b>₹{{ data.total_income|floatformat:0 }}</b></span><span>Expenses <b>₹{{ data.total_expense|floatformat:0 }}</b></span><span class="amt">Net ₹{{ data.net|floatformat:0 }}</span>{% if data.closed %}<span class="pill confirmed">closed</span>{% endif %}</div>
+{% if data.unproven %}<div class="muted">⚠ {{ data.unproven }} expense(s) without proof</div>{% endif %}</div>
+<h2>Income</h2><div class="card"><table>{% for r in data.income %}<tr><td>{{ r.income_source|default:"—" }}</td><td style="text-align:right">₹{{ r.s|floatformat:0 }}</td></tr>{% empty %}<tr><td class="muted">None recorded — POS pull not built yet; type in cash sales via + Add.</td></tr>{% endfor %}</table></div>
+<h2>Expenses</h2><div class="card"><table>{% for r in data.expenses %}<tr><td>{{ r.category__name|default:"Uncategorised" }}</td><td style="text-align:right">₹{{ r.s|floatformat:0 }}</td></tr>{% empty %}<tr><td class="muted">None.</td></tr>{% endfor %}</table></div>
+{% endif %}
+{% endblock %}

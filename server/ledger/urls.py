@@ -20,6 +20,13 @@ urlpatterns = [
     path("invoices/<int:pk>/", views.invoice_detail, name="invoice_detail"),
     path("proofs/<int:pk>/file/", views.proof_file, name="proof_file"),
 
+    path("add/", views.add_entry, name="add"),
+    path("balance/", views.balance, name="balance"),
+    path("pnl/", views.pnl, name="pnl"),
+    path("periods/", views.periods, name="periods"),
+    path("periods/<int:cafe_pk>/<str:ym>/close/", views.period_close, name="period_close"),
+    path("payroll/", views.payroll, name="payroll"),
+
     path("sw.js", views.service_worker, name="sw"),
     path("manifest.json", views.manifest, name="manifest"),
     path("offline/", views.offline, name="offline"),

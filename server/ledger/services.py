@@ -26,7 +26,7 @@ from django.utils import timezone
 
 from . import dedup
 from .extraction import ExtractionError, extract
-from .models import Cafe, Invoice, LedgerEntry, Person, Proof, ShareEvent
+from .models import Cafe, Invoice, LedgerEntry, PayrollPeriod, Period, Person, Proof, ShareEvent
 
 log = logging.getLogger(__name__)
 
@@ -228,6 +228,8 @@ def _link_share(proof: Proof, ev: ShareEvent, result: IngestResult):
                 paid_at=p["_paid_at"],
                 amount=p["amount"],
                 paid_by=shared_by if shared_by and shared_by.role != Person.Role.OTHER else None,
+                # whose money: default to the payer's own; the review screen can change it
+                funded_by=shared_by if shared_by and shared_by.role == Person.Role.PARTNER else None,
                 payee_name=p.get("payee_name") or "",
                 payee_phone_masked=p.get("payee_phone_masked") or "",
                 description=p.get("message") or "",
@@ -324,20 +326,159 @@ def claim_next() -> Proof | None:
 
 # ------------------------------------------------------------------ review
 
-def confirm_entry(entry: LedgerEntry, by: Person):
+class PeriodClosed(Exception):
+    """The month this would land in is closed. Book it late instead."""
+
+
+def confirm_entry(entry: LedgerEntry, by: Person, *, late_ok: bool = False):
+    """Confirm = it counts. Refused when the paid_on month is closed for that
+    cafe, unless late_ok: then it is booked TODAY and tagged late_for that
+    month (9.8). Confidence below 0.7 must have been retyped (views enforce)."""
     if not by.can_confirm:
         raise PermissionError("not a confirmer")
+    if entry.status == LedgerEntry.Status.CONFIRMED:
+        return entry
+    if Period.is_month_closed(entry.cafe, entry.paid_on):
+        if not late_ok:
+            raise PeriodClosed(f"{entry.paid_on:%B %Y} is closed for {entry.cafe}")
+        entry.late_for = Period.objects.get(cafe=entry.cafe, month=Period.month_of(entry.paid_on))
+        entry.booked_on = timezone.localdate()
+        if Period.is_month_closed(entry.cafe, entry.booked_on):
+            raise PeriodClosed("the current month is closed too")
+        entry.save(update_fields=["late_for", "booked_on"])
     entry.confirm(by)
     return entry
 
 
 def reverse_entry(entry: LedgerEntry, by: Person, reason: str) -> LedgerEntry:
-    """Never edit confirmed money. Add an equal-and-opposite row instead."""
+    """Never edit confirmed money. Add an equal-and-opposite row, booked today
+    (so a closed month stays closed; the reversal shows in the current one)."""
+    today = timezone.localdate()
+    if Period.is_month_closed(entry.cafe, today):
+        raise PeriodClosed("the current month is closed")
     rev = LedgerEntry.objects.create(
-        cafe=entry.cafe, paid_on=date.today(), amount=-entry.amount, category=entry.category,
-        paid_by=entry.paid_by, payee_name=entry.payee_name,
+        kind=entry.kind, cafe=entry.cafe, paid_on=today, booked_on=today, amount=-entry.amount,
+        category=entry.category, paid_by=entry.paid_by, funded_by=entry.funded_by,
+        counterparty=entry.counterparty, payee_name=entry.payee_name, invoice=entry.invoice,
+        payroll=entry.payroll, income_source=entry.income_source,
         description=f"REVERSAL of {entry.cf_tag}: {reason}"[:300],
         source=LedgerEntry.Source.MANUAL, status=LedgerEntry.Status.CONFIRMED,
         reversal_of=entry, created_by=by, confirmed_by=by, confirmed_at=timezone.now(),
     )
+    if entry.invoice_id:
+        entry.invoice.refresh_status()
+    if entry.payroll_id:
+        entry.payroll.refresh_status()
     return rev
+
+
+# ------------------------------------------------------------------ month close (9.8)
+
+def request_close(cafe: Cafe, month, by: Person) -> Period:
+    """First confirmer asks; a DIFFERENT confirmer closes. Both need can_confirm.
+    Refused while anything in that month is still pending review."""
+    if not by.can_confirm:
+        raise PermissionError("not a confirmer")
+    month = Period.month_of(month)
+    period, _ = Period.objects.get_or_create(cafe=cafe, month=month)
+    if period.is_closed:
+        return period
+    nxt = (month.replace(year=month.year + 1, month=1) if month.month == 12
+           else month.replace(month=month.month + 1))
+    waiting = LedgerEntry.objects.filter(
+        cafe=cafe, paid_on__gte=month, paid_on__lt=nxt,
+        status__in=(LedgerEntry.Status.PENDING, LedgerEntry.Status.IMPORTED)).count()
+    if waiting:
+        raise ValueError(f"{waiting} entr{'y is' if waiting == 1 else 'ies are'} still waiting for review in {month:%B %Y}")
+    if period.close_requested_by_id is None:
+        period.close_requested_by, period.close_requested_at = by, timezone.now()
+        period.save(update_fields=["close_requested_by", "close_requested_at"])
+    elif period.close_requested_by_id != by.pk:
+        period.closed_by, period.closed_at = by, timezone.now()
+        period.save(update_fields=["closed_by", "closed_at"])
+    return period
+
+
+# ------------------------------------------------------------------ partner balance (9.2 / 9.4)
+
+def partner_balance(cafe: Cafe | None = None, month=None):
+    """Per person: what they put in, what was settled back, what they are owed.
+
+    put_in   = confirmed EXPENSES paid AND funded by the person (own pocket, directly)
+             + confirmed TRANSFERS funded by the person INTO the cafe / another partner
+    settled  = confirmed TRANSFERS where the person is the counterparty and the
+               money came from the cafe (funded_by is None) — i.e. paid back
+    holding  = money the person received from others (transfers to them) minus
+               expenses they paid with that money (paid_by=them, funded_by=someone else)
+    owed     = put_in − settled
+    Expenses paid from someone ELSE's money count for nobody here: the funder
+    already got credit when the transfer was recorded. That is the whole point
+    of funded_by.
+    """
+    from django.db.models import Q
+    qs = LedgerEntry.objects.filter(status=LedgerEntry.Status.CONFIRMED)
+    if cafe is not None:
+        qs = qs.filter(cafe=cafe)
+    if month is not None:
+        m = Period.month_of(month)
+        nxt = (m.replace(year=m.year + 1, month=1) if m.month == 12 else m.replace(month=m.month + 1))
+        qs = qs.filter(booked_on__gte=m, booked_on__lt=nxt)
+    rows = {}
+    def r(p):
+        return rows.setdefault(p.pk, {"person": p, "put_in": Decimal("0"), "settled": Decimal("0"),
+                                      "holding": Decimal("0"), "spent_for_cafe": Decimal("0")})
+    for e in qs.select_related("paid_by", "funded_by", "counterparty"):
+        if e.kind == LedgerEntry.Kind.EXPENSE:
+            if e.funded_by_id and e.funded_by_id == e.paid_by_id:
+                r(e.funded_by)["put_in"] += e.amount
+                r(e.funded_by)["spent_for_cafe"] += e.amount
+            elif e.funded_by_id and e.paid_by_id:
+                r(e.paid_by)["holding"] -= e.amount
+                r(e.paid_by)["spent_for_cafe"] += e.amount
+        elif e.kind == LedgerEntry.Kind.TRANSFER:
+            if e.funded_by_id:                      # a partner put money in
+                r(e.funded_by)["put_in"] += e.amount
+                if e.counterparty_id:               # …and handed it to another partner
+                    r(e.counterparty)["holding"] += e.amount
+            elif e.counterparty_id:                 # cafe paid a partner back
+                r(e.counterparty)["settled"] += e.amount
+    out = []
+    for v in rows.values():
+        v["owed"] = v["put_in"] - v["settled"]
+        out.append(v)
+    out.sort(key=lambda v: v["person"].name)
+    return out
+
+
+def monthly_pnl(cafe: Cafe, month):
+    """Income − expenses by category for one cafe-month, confirmed rows only,
+    on booked_on so late entries land where they were booked."""
+    from django.db.models import Sum
+    m = Period.month_of(month)
+    nxt = (m.replace(year=m.year + 1, month=1) if m.month == 12 else m.replace(month=m.month + 1))
+    qs = LedgerEntry.objects.filter(cafe=cafe, status=LedgerEntry.Status.CONFIRMED,
+                                    booked_on__gte=m, booked_on__lt=nxt)
+    income = qs.filter(kind=LedgerEntry.Kind.INCOME).values("income_source").annotate(s=Sum("amount")).order_by("income_source")
+    expenses = qs.filter(kind=LedgerEntry.Kind.EXPENSE).values("category__name").annotate(s=Sum("amount")).order_by("-s")
+    ti = sum((row["s"] for row in income), Decimal("0"))
+    te = sum((row["s"] for row in expenses), Decimal("0"))
+    unproven = qs.filter(kind=LedgerEntry.Kind.EXPENSE, proofs__isnull=True).count()
+    return {"month": m, "income": list(income), "expenses": list(expenses),
+            "total_income": ti, "total_expense": te, "net": ti - te, "unproven": unproven,
+            "closed": Period.is_month_closed(cafe, m)}
+
+
+def suggest_payroll(entry: LedgerEntry):
+    """Open salary periods this payment might be settling: staff name in payee,
+    or category = salary and amount ≤ outstanding."""
+    import re
+    qs = PayrollPeriod.objects.exclude(status=PayrollPeriod.Status.PAID).select_related("staff")
+    if entry.cafe_id:
+        qs = qs.filter(cafe=entry.cafe)
+    words = {w.lower() for w in re.findall(r"[A-Za-z]{3,}", (entry.payee_name or "") + " " + (entry.description or ""))}
+    out = []
+    for pp in qs[:50]:
+        sw = {w.lower() for w in re.findall(r"[A-Za-z]{3,}", pp.staff.name)}
+        if words & sw or (entry.category and entry.category.slug == "salary" and pp.outstanding >= entry.amount):
+            out.append(pp)
+    return out[:5]

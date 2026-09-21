@@ -1,0 +1,15 @@
+{% extends "ledger/base.html" %}
+{% block title %}Month close · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Month close</h1>
+<p class="muted">Closing takes two different confirmers: one requests, another closes. Nothing may be pending in that month. Late proofs afterwards are booked in the current month and marked "late for".</p>
+{% for g in grid %}
+<h2>{{ g.cafe.name }}</h2>
+<div class="card"><table>
+{% for m in g.months %}<tr><td>{{ m.month|date:"F Y" }}</td>
+<td>{% if m.period and m.period.is_closed %}<span class="pill confirmed">closed {{ m.period.closed_at|date:"d M" }} by {{ m.period.closed_by }}</span>
+{% elif m.period and m.period.close_requested_by %}<span class="pill pending">requested by {{ m.period.close_requested_by }}</span>{% else %}<span class="pill">open</span>{% endif %}</td>
+<td style="text-align:right">{% if not m.period or not m.period.is_closed %}<form method="post" action="{% url 'ledger:period_close' g.cafe.pk m.month|date:'Y-m' %}">{% csrf_token %}<button class="btn small {% if not m.period or not m.period.close_requested_by %}secondary{% endif %}">{% if m.period and m.period.close_requested_by %}Close{% else %}Request close{% endif %}</button></form>{% endif %}</td></tr>{% endfor %}
+</table></div>
+{% endfor %}
+{% endblock %}

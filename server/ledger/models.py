@@ -158,6 +158,83 @@ class Invoice(models.Model):
         return self.status
 
 
+class Period(models.Model):
+    """A cafe-month. Once closed, nothing booked in it may move (9.8).
+    Closing takes TWO different confirmers: the first requests, the second closes."""
+
+    cafe = models.ForeignKey(Cafe, on_delete=models.CASCADE, related_name="periods")
+    month = models.DateField(help_text="first day of the month")
+    close_requested_by = models.ForeignKey(Person, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    close_requested_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(Person, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-month"]
+        constraints = [models.UniqueConstraint(fields=["cafe", "month"], name="uniq_cafe_month")]
+
+    def __str__(self):
+        return f"{self.cafe} {self.month:%b %Y} ({'closed' if self.is_closed else 'open'})"
+
+    @property
+    def is_closed(self):
+        return self.closed_at is not None
+
+    @staticmethod
+    def month_of(d):
+        return d.replace(day=1)
+
+    @classmethod
+    def is_month_closed(cls, cafe, d) -> bool:
+        if cafe is None or d is None:
+            return False
+        return cls.objects.filter(cafe=cafe, month=cls.month_of(d), closed_at__isnull=False).exists()
+
+
+class PayrollPeriod(models.Model):
+    """Salary OWED to one staff member for one month (9.3). Paid in pieces —
+    'salary installment to Dhiren, rest tomorrow' — exactly like an Invoice."""
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        PART_PAID = "part_paid", "Part paid"
+        PAID = "paid", "Paid"
+
+    cafe = models.ForeignKey(Cafe, on_delete=models.PROTECT, related_name="payroll")
+    staff = models.ForeignKey(Person, on_delete=models.PROTECT, related_name="payroll")
+    month = models.DateField(help_text="first day of the month")
+    amount_owed = models.DecimalField(max_digits=12, decimal_places=2)
+    advances = models.DecimalField(max_digits=12, decimal_places=2, default=0,
+                                   help_text="advances already given, outside this app")
+    notes = models.CharField(max_length=300, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-month", "staff__name"]
+        constraints = [models.UniqueConstraint(fields=["cafe", "staff", "month"], name="uniq_payroll")]
+
+    def __str__(self):
+        return f"{self.staff} {self.month:%b %Y} ₹{self.amount_owed}"
+
+    @property
+    def paid_total(self):
+        return (self.payments.filter(status=LedgerEntry.Status.CONFIRMED)
+                .aggregate(s=Sum("amount"))["s"] or Decimal("0"))
+
+    @property
+    def outstanding(self):
+        return self.amount_owed - self.advances - self.paid_total
+
+    def refresh_status(self, save=True):
+        out = self.outstanding
+        self.status = (self.Status.PAID if out <= 0 else
+                       self.Status.PART_PAID if (self.paid_total + self.advances) > 0 else self.Status.OPEN)
+        if save:
+            self.save(update_fields=["status"])
+        return self.status
+
+
 class LedgerEntry(models.Model):
     """Money MOVED. One row per real payment, however many times its proof was
     shared. Reports only ever read status=confirmed rows."""
@@ -183,14 +260,43 @@ class LedgerEntry(models.Model):
         CASH = "cash", "Cash"
         OTHER = "other", "Other"
 
+    class Kind(models.TextChoices):
+        EXPENSE = "expense", "Expense"
+        INCOME = "income", "Income"
+        TRANSFER = "transfer", "Transfer between partners / cafe"
+
+    class IncomeSource(models.TextChoices):
+        POS = "pos", "FastPOS sales"
+        CASH = "cash", "Cash sales (no POS)"
+        CATERING = "catering", "Catering / advance"
+        SWIGGY = "swiggy", "Swiggy settlement"
+        ZOMATO = "zomato", "Zomato settlement"
+        OTHER = "other", "Other"
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.EXPENSE, db_index=True)
     cafe = models.ForeignKey(Cafe, null=True, blank=True, on_delete=models.PROTECT)
     # Date the money moved (from the receipt). Share dates live on ShareEvent.
     paid_on = models.DateField()
+    # Date it counts in the books. = paid_on, except a late entry into a closed
+    # month, which is booked today and points at the month it was really for.
+    booked_on = models.DateField(null=True, blank=True, db_index=True)
+    late_for = models.ForeignKey(Period, null=True, blank=True, on_delete=models.SET_NULL, related_name="late_entries")
     paid_at = models.DateTimeField(null=True, blank=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL)
     paid_by = models.ForeignKey(Person, null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name="payments_made")
+    # WHOSE money it was (9.2). None = the cafe's own till/account. Defaults to
+    # paid_by. Srinivas paying from money Praveen gave him → paid_by=Srinivas,
+    # funded_by=Praveen; that expense is NOT Srinivas's contribution.
+    funded_by = models.ForeignKey(Person, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="payments_funded")
+    # For transfers: the partner on the other side (received the money).
+    counterparty = models.ForeignKey(Person, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="transfers_received")
+    income_source = models.CharField(max_length=10, choices=IncomeSource.choices, blank=True)
+    payroll = models.ForeignKey(PayrollPeriod, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name="payments")
     payee_name = models.CharField(max_length=120, blank=True)
     payee_phone_masked = models.CharField(max_length=30, blank=True)
     description = models.CharField(max_length=300, blank=True)   # the comment
@@ -236,6 +342,10 @@ class LedgerEntry(models.Model):
         # Normalise empties so the unique constraints behave (NULL != NULL).
         self.utr = (self.utr or "").strip() or None
         self.cf_tag = (self.cf_tag or "").strip() or None
+        if self.booked_on is None:
+            self.booked_on = self.paid_on
+        if self.category_id and self.category.kind in ("income", "transfer") and self.kind == self.Kind.EXPENSE:
+            self.kind = self.category.kind
         super().save(*args, **kwargs)
         if not self.cf_tag:
             self.cf_tag = f"#CF-{self.pk:06d}"
@@ -252,6 +362,12 @@ class LedgerEntry(models.Model):
         self.save(update_fields=["status", "confirmed_by", "confirmed_at"])
         if self.invoice_id:
             self.invoice.refresh_status()
+        if self.payroll_id:
+            self.payroll.refresh_status()
+
+    @property
+    def has_proof(self):
+        return self.proofs.exists()
 
     def whatsapp_caption(self):
         from django.conf import settings as s
