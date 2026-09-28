@@ -116,9 +116,12 @@ def person_edit(request, pk=None):
                     if uname:
                         user = p.user if p.user_id else None
                         if user is None:
-                            user = User.objects.filter(username=uname).first() or User(username=uname)
+                            user = User.objects.filter(username__iexact=uname).first() or User(username=uname)
                             if getattr(user, "person", None) and user.person.pk != p.pk:
                                 raise IntegrityError(f"login '{uname}' already belongs to {user.person}")
+                        clash = User.objects.filter(username__iexact=uname).exclude(pk=user.pk).first()
+                        if clash:
+                            raise IntegrityError(f"login '{uname}' is already used by {getattr(clash, 'person', None) or clash.username}")
                         user.username = uname
                         user.first_name = d["name"][:150]
                         user.is_active = d["can_login"]

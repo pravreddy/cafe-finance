@@ -570,3 +570,20 @@ class SettingsRemoveTests(TestCase):
         LedgerEntry.objects.create(amount=10, paid_on=date(2026, 9, 1), paid_by=srini)
         self.c.post(f"/settings/people/{srini.pk}/remove/")
         self.assertTrue(Person.objects.filter(pk=srini.pk).exists())
+
+
+class CaseInsensitiveLoginTests(TestCase):
+    def test_any_case_signs_in(self):
+        U = get_user_model()
+        U.objects.create_user("srinivas", password="a-good-password")
+        U.objects.create_superuser("Praveen", password="owner-pass-123")    # mixed case from createsuperuser
+        for name in ("srinivas", "Srinivas", "SRINIVAS", " srinivas "):
+            self.assertTrue(Client().login(username=name, password="a-good-password"), name)
+        self.assertTrue(Client().login(username="praveen", password="owner-pass-123"))
+        self.assertFalse(Client().login(username="Srinivas", password="wrong"))
+
+    def test_login_page_posts_any_case(self):
+        get_user_model().objects.create_user("srinivas", password="a-good-password")
+        r = Client().post("/login/", {"username": "Srinivas", "password": "a-good-password"})
+        self.assertEqual(r.status_code, 302)
+        self.assertContains(Client().get("/login/"), 'autocapitalize="none"')

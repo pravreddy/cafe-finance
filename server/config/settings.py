@@ -84,6 +84,9 @@ else:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Usernames are case-insensitive at sign-in (phones capitalise the first letter).
+AUTHENTICATION_BACKENDS = ["ledger.auth.CaseInsensitiveModelBackend"]
+
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
