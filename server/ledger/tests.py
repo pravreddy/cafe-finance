@@ -161,7 +161,7 @@ class HttpTests(TestCase):
         proof_pk = int(r["Location"].rstrip("/").split("/")[-1])
         from .models import Cafe, Category
         r = self.c.post(f"/review/{proof_pk}/", {
-            "doc_type": "payment", "cafe": Cafe.objects.first().pk,
+            "doc_type": "payment", "cafe": Cafe.objects.get(slug="cafegopala").pk,
             "category": Category.objects.get(slug="repairs").pk, "description": "2nd installment for painting",
             "amount": "10000", "paid_on": "2026-09-14", "paid_by": Person.objects.get(name="Srinivas").pk,
             "payee_name": "Painter Raja", "upi_app": "phonepe", "utr": "083414546430",
