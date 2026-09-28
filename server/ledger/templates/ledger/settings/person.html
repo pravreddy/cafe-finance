@@ -1,0 +1,29 @@
+{% extends "ledger/base.html" %}
+{% block title %}{% if person %}{{ person.name }}{% else %}New person{% endif %} · Settings{% endblock %}
+{% block content %}
+<p><a class="muted" href="{% url 'ledger:settings' %}">← Settings</a></p>
+<form method="post" class="card">{% csrf_token %}
+  <h1>{% if person %}{{ person.name }}{% else %}Add a person{% endif %}</h1>
+  {{ form.non_field_errors }}
+  <label>Name</label>{{ form.name }}{{ form.name.errors }}
+  <div class="row">
+    <div style="flex:1"><label>Role</label>{{ form.role }}</div>
+    <div style="flex:1"><label>Main cafe</label>{{ form.default_cafe }}</div>
+  </div>
+  <div class="row">
+    <div style="flex:1"><label>Phone</label>{{ form.phone }}</div>
+    <div style="flex:1"><label>WhatsApp ID</label>{{ form.whatsapp_jid }}{{ form.whatsapp_jid.errors }}</div>
+  </div>
+  <p class="muted">WhatsApp ID: just type the number with 91, e.g. 919876543210 — the rest is added for you.</p>
+  <label><input type="checkbox" name="can_confirm" {% if form.can_confirm.value %}checked{% endif %}> Can confirm entries (they count in reports once confirmed)</label>
+
+  <h2>Login</h2>
+  <label>Username</label>{{ form.username }}{{ form.username.errors }}
+  <p class="muted">{{ form.username.help_text }}</p>
+  <label>{% if has_password %}New password{% else %}Password{% endif %}</label>{{ form.password }}{{ form.password.errors }}
+  <p class="muted">{% if has_password %}Leave blank to keep the current password.{% elif has_login %}No password yet — this person cannot sign in until you set one.{% else %}At least 8 characters. Tell them in person, not in the group.{% endif %}</p>
+  <label><input type="checkbox" name="can_login" {% if form.can_login.value %}checked{% endif %}> Can sign in</label>
+  <label><input type="checkbox" name="is_owner" {% if form.is_owner.value %}checked{% endif %}> Owner — can open Settings</label>
+  <div class="sticky"><button class="btn">Save</button> <a class="btn secondary" href="{% url 'ledger:settings' %}">Cancel</a></div>
+</form>
+{% endblock %}

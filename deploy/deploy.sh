@@ -15,5 +15,5 @@ echo "==> running remote deploy"
 ssh "$SSH_HOST" "bash /tmp/cafe-finance-remote.sh"
 echo
 echo "==> test:  curl -s https://ledger.cafegopala.in/ping"
-echo "==> first-time logins:  ssh $SSH_HOST 'docker exec -it cafe-finance python manage.py seed_basic --with-users'"
-echo "==> then change the passwords in /admin/ (praveen / srinivas / priyanka start as change-me)"
+echo "==> first time only — your owner login:  ssh $SSH_HOST 'docker exec -it cafe-finance python manage.py createsuperuser --username praveen'"
+echo "==> then everyone else from https://ledger.cafegopala.in/settings/"

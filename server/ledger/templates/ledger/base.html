@@ -22,7 +22,7 @@ h1{font-size:20px;margin:0 0 10px}h2{font-size:16px;margin:16px 0 8px;color:var(
 .pill.confirmed{background:#e3f3ea;color:var(--ok)}.pill.pending,.pill.imported{background:#fff4e0;color:var(--warn)}.pill.rejected{background:#fde8e6;color:var(--bad)}
 .pill.open,.pill.part_paid{background:#fff4e0;color:var(--warn)}.pill.paid{background:#e3f3ea;color:var(--ok)}
 label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
-input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#fff}
+input[type=text],input[type=number],input[type=date],input[type=password],select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#fff}
 .chips{display:flex;flex-wrap:wrap;gap:8px}.chips label{margin:0}.chips input{display:none}
 .chips span{display:inline-block;padding:7px 12px;border:1px solid var(--line);border-radius:999px;font-size:14px;background:#fff;cursor:pointer}
 .chips input:checked+span{background:var(--g);color:#fff;border-color:var(--g)}
@@ -47,6 +47,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;b
     <a href="{% url 'ledger:add' %}">Type</a>
     {% if user.person.role == "partner" %}<a href="{% url 'ledger:reports' %}">Reports</a><a href="{% url 'ledger:balance' %}">Balance</a>{% endif %}
     {% if user.person.can_confirm %}<a href="{% url 'ledger:queue' %}">Queue</a>{% endif %}
+    {% if user.is_superuser %}<a href="{% url 'ledger:settings' %}">⚙ Settings</a>{% endif %}
   </nav>
   {% endif %}
 </header>

@@ -471,3 +471,81 @@ class ReportsTests(TestCase):
         self.assertEqual(rows.count(), 2)
         self.assertEqual(rows.first().amount, Decimal("4321.50"))
         self.assertEqual(rows.first().status, LedgerEntry.Status.CONFIRMED)
+
+
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
+class SettingsTests(TestCase):
+    """Settings IS the admin page — owners only, no /admin/ needed."""
+
+    def setUp(self):
+        call_command("seed_basic", verbosity=0)          # no logins, like production
+        User = get_user_model()
+        self.owner = User.objects.create_superuser("praveen", password="owner-pass-123")
+        self.c = Client(); self.c.login(username="praveen", password="owner-pass-123")
+
+    def test_owner_first_visit_links_to_seeded_person(self):
+        self.c.get("/")
+        p = Person.objects.get(name="Praveen")
+        self.assertEqual(p.user, self.owner)
+        self.assertEqual(Person.objects.filter(name__iexact="praveen").count(), 1)
+
+    def test_settings_hidden_from_non_owners(self):
+        self.assertContains(self.c.get("/"), "Settings")
+        User = get_user_model()
+        User.objects.create_user("srinivas", password="srini-pass-123")
+        c2 = Client(); c2.login(username="srinivas", password="srini-pass-123")
+        self.assertNotContains(c2.get("/"), "Settings")
+        self.assertEqual(c2.get("/settings/").status_code, 302)
+
+    def test_owner_gives_srinivas_a_login(self):
+        srini = Person.objects.get(name="Srinivas")
+        r = self.c.post(f"/settings/people/{srini.pk}/", {
+            "name": "Srinivas", "role": "partner", "default_cafe": srini.default_cafe_id, "can_confirm": "on",
+            "username": "srinivas", "password": "a-good-password", "can_login": "on",
+            "whatsapp_jid": "91 98765 43210"})
+        self.assertEqual(r.status_code, 302, r.content[:400])
+        srini.refresh_from_db()
+        self.assertEqual(srini.user.username, "srinivas")
+        self.assertEqual(srini.whatsapp_jid, "919876543210@s.whatsapp.net")
+        self.assertFalse(srini.user.is_superuser)
+        c2 = Client()
+        self.assertTrue(c2.login(username="srinivas", password="a-good-password"))
+
+    def test_add_staff_without_login_and_short_password_rejected(self):
+        r = self.c.post("/settings/people/new/", {"name": "Raju", "role": "staff", "username": "raju", "password": "short"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "At least 8")
+        r = self.c.post("/settings/people/new/", {"name": "Raju", "role": "staff"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIsNone(Person.objects.get(name="Raju").user)
+
+    def test_owner_cannot_remove_own_settings_access(self):
+        self.c.get("/")
+        me = Person.objects.get(user=self.owner)
+        self.c.post(f"/settings/people/{me.pk}/", {"name": "Praveen", "role": "partner", "username": "praveen",
+                                                   "can_login": "on", "can_confirm": "on"})
+        self.owner.refresh_from_db()
+        self.assertTrue(self.owner.is_superuser)
+
+    def test_cafe_groups_and_activation(self):
+        from .models import Cafe
+        c2 = Cafe.objects.get(slug="cafe-2")
+        r = self.c.post(f"/settings/cafes/{c2.pk}/", {"name": "Krishna Kitchen", "is_active": "on",
+                                                      "whatsapp_groups": "Krishna Kitchen Finance"})
+        self.assertContains(r, "already belongs to another cafe")      # still on Cafe Gopala
+        cg = Cafe.objects.get(slug="cafegopala")
+        self.c.post(f"/settings/cafes/{cg.pk}/", {"name": "Cafe Gopala", "is_active": "on", "whatsapp_groups": "CG fin"})
+        r = self.c.post(f"/settings/cafes/{c2.pk}/", {"name": "Krishna Kitchen", "is_active": "on",
+                                                      "whatsapp_groups": "Krishna Kitchen Finance"})
+        self.assertEqual(r.status_code, 302)
+        c2.refresh_from_db()
+        self.assertTrue(c2.is_active); self.assertEqual(c2.whatsapp_groups, ["Krishna Kitchen Finance"])
+
+    def test_categories_add_rename_hide(self):
+        from .models import Category
+        self.c.post("/settings/categories/", {"action": "add", "name": "Milk", "kind": "expense"})
+        m = Category.objects.get(name="Milk")
+        self.c.post("/settings/categories/", {"action": "rename", "pk": m.pk, "name": "Milk & curd"})
+        self.c.post("/settings/categories/", {"action": "toggle", "pk": m.pk})
+        m.refresh_from_db()
+        self.assertEqual(m.name, "Milk & curd"); self.assertFalse(m.is_active)

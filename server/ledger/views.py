@@ -21,9 +21,15 @@ from .models import Cafe, Category, GroupPost, Invoice, LedgerEntry, PayrollPeri
 def current_person(request) -> Person:
     p = getattr(request.user, "person", None)
     if p is None:
-        p, _ = Person.objects.get_or_create(user=request.user, defaults={
-            "name": request.user.get_full_name() or request.user.get_username(),
-        })
+        name = request.user.get_full_name() or request.user.get_username()
+        p = Person.objects.filter(user__isnull=True, name__iexact=name).first() \
+            or Person.objects.filter(user__isnull=True, name__iexact=request.user.get_username()).first()
+        if p:
+            p.user = request.user
+            p.save(update_fields=["user"])
+        else:
+            p = Person.objects.create(user=request.user, name=name.title() if name.islower() else name,
+                                      role=Person.Role.PARTNER, can_confirm=request.user.is_superuser)
     return p
 
 

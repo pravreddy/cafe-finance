@@ -3,7 +3,7 @@
     python manage.py seed_basic
     python manage.py seed_basic --with-users   # also creates logins praveen/srinivas/priyanka (password: change-me)
 
-Idempotent — safe to run on every deploy. Edit names in the admin afterwards.
+Idempotent — safe to run on every deploy. Names, logins and groups are then managed on the Settings page (/settings/).
 """
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
@@ -11,11 +11,6 @@ from django.core.management.base import BaseCommand
 from ledger.models import Cafe, Category, Person
 
 CAFES = [
-    # name, slug, fastpos tenant, WhatsApp groups the reconciler maps here, active
-    # 2026-09-28: only Cafe Gopala is trading, so it is ONE unit for all income and
-    # expenses — both finance groups map to it. The other two places are still being
-    # set up: rows exist but inactive (hidden from dropdowns, reports and the
-    # reconciler) until you rename + activate them in /admin/ and move their group.
     ("Cafe Gopala", "cafegopala", "cafegopala", ["CG fin", "Krishna Kitchen Finance"], True),
     ("Cafe 2 (not open yet)", "cafe-2", "", [], False),
     ("Cafe 3 (not open yet)", "cafe-3", "", [], False),
@@ -74,11 +69,13 @@ class Command(BaseCommand):
             p, _ = Person.objects.get_or_create(name=name, defaults={
                 "role": role, "can_confirm": confirm, "default_cafe": cafes.get(cafe_slug)})
             if opts["with_users"] and p.user_id is None:
+                # DEV/TEST ONLY: real logins are made on the Settings page.
                 u, created = User.objects.get_or_create(username=name.lower(), defaults={"first_name": name})
                 if created:
                     u.set_password("change-me")
                     u.save()
-                p.user = u
-                p.save(update_fields=["user"])
+                if getattr(u, "person", None) is None:
+                    p.user = u
+                    p.save(update_fields=["user"])
         self.stdout.write(self.style.SUCCESS(
             f"seeded {Cafe.objects.count()} cafes, {Category.objects.count()} categories, {Person.objects.count()} people"))

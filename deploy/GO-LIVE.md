@@ -86,23 +86,25 @@ ssh hetzner-prod 'grep API_TOKEN ~/careai/.env.cafe-finance'                    
 
 ---
 
-## 5. Users and cafe (server)
+## 5. Your login, then everyone else from Settings
+
+One command, once — your owner login (the only thing done on the server):
 
 ```bash
-ssh hetzner-prod
-docker exec -it cafe-finance python manage.py seed_basic --with-users   # praveen / srinivas / priyanka, password change-me
-docker exec -it cafe-finance python manage.py createsuperuser           # for /admin/
-exit
+ssh hetzner-prod 'docker exec -it cafe-finance python manage.py createsuperuser --username praveen'
 ```
 
-Then in the browser: https://ledger.cafegopala.in/admin/
-- **Users** → change all three passwords.
-- **Cafes** → Cafe Gopala is active with both WhatsApp groups; cafes 2 and 3 inactive (leave).
-- **People** → phone numbers; `whatsapp_jid` = `91XXXXXXXXXX@s.whatsapp.net` for each
-  partner (lets the reconciler credit "paid by" to the right person). Add staff
-  (role = staff) as they appear in salary screenshots.
+Everything else is on **https://ledger.cafegopala.in/settings/** (only owners see
+the ⚙ Settings link). Nothing in this app is ever done in `/admin/`.
 
-**Check:** sign in at https://ledger.cafegopala.in/ as srinivas → home page loads.
+- **People** → Srinivas → username `srinivas`, a password (8+ characters, tell him
+  in person), tick *Can confirm*; WhatsApp ID = his number with 91. Same for
+  Priyanka (no *Can confirm*). Add staff with no login.
+- **Cafes** → Cafe Gopala is trading with both finance groups; cafes 2 and 3 stay
+  "not open" until they open — then rename, tick *Trading*, move their group.
+- **Categories** → add / rename / hide as needed.
+
+**Check:** sign out, sign in as srinivas → home loads, no ⚙ Settings link.
 
 ---
 
@@ -193,7 +195,7 @@ Get an owner token in FastPOS:
 ```bash
 ssh hetzner-prod 'docker exec guhya-pos-api-blue python manage.py drf_create_token <cafegopala owner username>'
 ```
-Admin → Cafes → Cafe Gopala → `fastpos_token` = that token → save. Then:
+Settings → Cafes → Cafe Gopala → *FastPOS token* = that token → Save. Then:
 ```bash
 ssh hetzner-prod 'docker exec cafe-finance python manage.py pull_fastpos --days 30'
 ```
@@ -224,7 +226,7 @@ nightly backup in avyangah-infra/backup (same job that backs up guhya_pos).
 
 - [ ] 20+ real screenshots shared by Srinivas/Priyanka from their phones, from both PhonePe and WhatsApp
 - [ ] At least one PDF invoice and one photo of a handwritten bill
-- [ ] Every duplicate share came back "already recorded" — no double entries (search UTR in /admin/)
+- [ ] Every duplicate share came back "already recorded" — no double entries (Reports → Entries, look for repeated UTRs)
 - [ ] Reconciler backfill finished; unmatched count in the queue reviewed
 - [ ] Praveen confirmed a week's entries; Reports for the month make sense against the group
 - [ ] One "Type it in" cash entry; one partner transfer; Balance page shows it

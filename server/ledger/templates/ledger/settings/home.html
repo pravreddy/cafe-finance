@@ -1,0 +1,34 @@
+{% extends "ledger/base.html" %}
+{% block title %}Settings · Cafe Finance{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<p class="muted">Everything to run the ledger. Only you (owner) see this page.</p>
+
+<h2>People</h2>
+<div class="card" style="overflow-x:auto"><table>
+<tr><th>Name</th><th>Role</th><th>Login</th><th>Confirms</th><th>WhatsApp</th><th></th></tr>
+{% for p in people %}<tr>
+<td>{{ p.name }}{% if p.user.is_superuser %} <span class="pill">owner</span>{% endif %}</td>
+<td>{{ p.get_role_display }}</td>
+<td>{% if p.user %}{{ p.user.username }}{% if not p.user.is_active %} <span class="pill rejected">off</span>{% elif not p.user.has_usable_password %} <span class="pill pending">no password</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+<td>{% if p.can_confirm %}✓{% endif %}</td>
+<td>{% if p.whatsapp_jid %}✓{% else %}<span class="muted">—</span>{% endif %}</td>
+<td><a class="btn secondary small" href="{% url 'ledger:settings_person' p.pk %}">Edit</a></td></tr>{% endfor %}
+</table>
+<div style="margin-top:10px"><a class="btn small" href="{% url 'ledger:settings_person_new' %}">＋ Add person</a></div></div>
+
+<h2>Cafes</h2>
+{% for c in cafes %}
+<div class="card"><div class="row"><b>{{ c.name }}</b>{% if c.is_active %}<span class="pill confirmed">trading</span>{% else %}<span class="pill">not open</span>{% endif %}<span class="sp" style="flex:1"></span><a class="btn secondary small" href="{% url 'ledger:settings_cafe' c.pk %}">Edit</a></div>
+<div class="muted">WhatsApp groups: {{ c.whatsapp_groups|join:", "|default:"none" }} · FastPOS income: {% if c.fastpos_token %}connected{% else %}not connected{% endif %}</div></div>
+{% endfor %}
+<a class="btn secondary small" href="{% url 'ledger:settings_cafe_new' %}">＋ Add cafe</a>
+
+<h2>Categories</h2>
+<div class="card"><div class="muted">{% for c in categories %}{% if c.is_active %}{{ c.name }}{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}</div>
+<div style="margin-top:10px"><a class="btn secondary small" href="{% url 'ledger:settings_categories' %}">Manage categories</a></div></div>
+
+<h2>System</h2>
+<div class="card"><div class="muted">{{ stats.entries }} entries · {{ stats.pending }} waiting for review · {{ stats.proofs }} proofs · {{ stats.reading }} being read · {{ stats.failed }} couldn't be read</div>
+<div class="row" style="margin-top:10px"><a class="btn secondary small" href="{% url 'ledger:queue' %}">Queue</a><a class="btn secondary small" href="{% url 'ledger:periods' %}">Month close</a><a class="btn secondary small" href="{% url 'ledger:payroll' %}">Salaries</a><a class="btn secondary small" href="{% url 'ledger:invoices' %}">Invoices</a></div></div>
+{% endblock %}

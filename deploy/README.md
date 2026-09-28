@@ -18,4 +18,4 @@ What runs: `cafe-finance` (web; migrates + seeds on boot) and `cafe-finance-work
 (reads queued proofs with the shared Ollama's `llama3.2-vision`, which remote.sh pulls
 if missing). DB `cafe_finance` on careai-postgres; proofs on the `cafe_finance_media`
 volume — add it to the nightly backup. `pull_fastpos` runs from cron at 02:15 once a
-cafe has a FastPOS owner token set in /admin/.
+cafe has a FastPOS owner token set in Settings → Cafes.

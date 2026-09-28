@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import api, views
+from . import api, settings_views, views
 
 app_name = "ledger"
 
@@ -28,6 +28,13 @@ urlpatterns = [
     path("payroll/", views.payroll, name="payroll"),
     path("reports/", views.reports, name="reports"),
     path("export/", views.export, name="export"),
+
+    path("settings/", settings_views.home, name="settings"),
+    path("settings/people/new/", settings_views.person_edit, name="settings_person_new"),
+    path("settings/people/<int:pk>/", settings_views.person_edit, name="settings_person"),
+    path("settings/cafes/new/", settings_views.cafe_edit, name="settings_cafe_new"),
+    path("settings/cafes/<int:pk>/", settings_views.cafe_edit, name="settings_cafe"),
+    path("settings/categories/", settings_views.categories, name="settings_categories"),
 
     path("sw.js", views.service_worker, name="sw"),
     path("manifest.json", views.manifest, name="manifest"),

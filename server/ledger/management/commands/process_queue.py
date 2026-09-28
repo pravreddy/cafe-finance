@@ -5,7 +5,7 @@
 
 Why a table and not Kafka/Redis: three cafes produce a few dozen documents a
 day. A `state` column on Proof, claimed with SELECT … FOR UPDATE SKIP LOCKED,
-gives us durability, retries, ordering and "what is waiting" in the admin —
+gives us durability, retries, ordering and "what is waiting" on the Settings page —
 with zero extra infrastructure on the box. If volume ever needs it, the only
 thing to swap is claim_next(); intake and process_proof stay the same.
 """

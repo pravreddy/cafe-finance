@@ -1,0 +1,20 @@
+{% extends "ledger/base.html" %}
+{% block title %}{% if cafe %}{{ cafe.name }}{% else %}New cafe{% endif %} · Settings{% endblock %}
+{% block content %}
+<p><a class="muted" href="{% url 'ledger:settings' %}">← Settings</a></p>
+<form method="post" class="card">{% csrf_token %}
+  <h1>{% if cafe %}{{ cafe.name }}{% else %}Add a cafe{% endif %}</h1>
+  <label>Name</label>{{ form.name }}{{ form.name.errors }}
+  <label><input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}> Trading</label>
+  <p class="muted">{{ form.is_active.help_text }}</p>
+  <label>WhatsApp finance groups</label>{{ form.whatsapp_groups }}
+  <p class="muted">{{ form.whatsapp_groups.help_text }}. Proofs the WhatsApp reader finds in these groups are booked to this cafe. Moving a group here only affects new proofs.</p>
+  <h2>FastPOS income</h2>
+  <div class="row">
+    <div style="flex:1"><label>FastPOS restaurant</label>{{ form.fastpos_tenant }}</div>
+    <div style="flex:1"><label>FastPOS token</label>{{ form.fastpos_token }}</div>
+  </div>
+  <p class="muted">{{ form.fastpos_token.help_text }}</p>
+  <div class="sticky"><button class="btn">Save</button> <a class="btn secondary" href="{% url 'ledger:settings' %}">Cancel</a></div>
+</form>
+{% endblock %}

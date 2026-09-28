@@ -37,7 +37,7 @@ class Command(BaseCommand):
         if o["cafe"]:
             cafes = cafes.filter(slug=o["cafe"])
         if not cafes:
-            self.stdout.write("no cafe has a fastpos_token — set it in the admin"); return
+            self.stdout.write("no cafe has a fastpos_token — set it in Settings → Cafes"); return
         today = timezone.localdate()
         start = date.fromisoformat(o["start"]) if o["start"] else today - timedelta(days=o["days"] - 1)
         end = date.fromisoformat(o["end"]) if o["end"] else today
