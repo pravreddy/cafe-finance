@@ -549,3 +549,24 @@ class SettingsTests(TestCase):
         self.c.post("/settings/categories/", {"action": "toggle", "pk": m.pk})
         m.refresh_from_db()
         self.assertEqual(m.name, "Milk & curd"); self.assertFalse(m.is_active)
+
+
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
+class SettingsRemoveTests(TestCase):
+    def setUp(self):
+        call_command("seed_basic", verbosity=0)
+        get_user_model().objects.create_superuser("owner", password="owner-pass-123")
+        self.c = Client(); self.c.login(username="owner", password="owner-pass-123")
+
+    def test_password_field_blocks_browser_autofill(self):
+        p = Person.objects.get(name="Srinivas")
+        self.assertContains(self.c.get(f"/settings/people/{p.pk}/"), 'autocomplete="new-password"')
+
+    def test_remove_duplicate_but_not_people_in_the_books(self):
+        dup = Person.objects.create(name="praveen dup")
+        r = self.c.post(f"/settings/people/{dup.pk}/remove/")
+        self.assertFalse(Person.objects.filter(pk=dup.pk).exists())
+        srini = Person.objects.get(name="Srinivas")
+        LedgerEntry.objects.create(amount=10, paid_on=date(2026, 9, 1), paid_by=srini)
+        self.c.post(f"/settings/people/{srini.pk}/remove/")
+        self.assertTrue(Person.objects.filter(pk=srini.pk).exists())

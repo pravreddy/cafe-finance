@@ -32,6 +32,7 @@ urlpatterns = [
     path("settings/", settings_views.home, name="settings"),
     path("settings/people/new/", settings_views.person_edit, name="settings_person_new"),
     path("settings/people/<int:pk>/", settings_views.person_edit, name="settings_person"),
+    path("settings/people/<int:pk>/remove/", settings_views.person_remove, name="settings_person_remove"),
     path("settings/cafes/new/", settings_views.cafe_edit, name="settings_cafe_new"),
     path("settings/cafes/<int:pk>/", settings_views.cafe_edit, name="settings_cafe"),
     path("settings/categories/", settings_views.categories, name="settings_categories"),

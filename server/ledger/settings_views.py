@@ -41,8 +41,12 @@ class PersonForm(forms.Form):
     default_cafe = forms.ModelChoiceField(queryset=Cafe.objects.all(), required=False)
     can_confirm = forms.BooleanField(required=False)
     # login
-    username = forms.CharField(max_length=150, required=False, help_text="leave blank for no login (e.g. staff who never use the app)")
-    password = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False),
+    username = forms.CharField(max_length=150, required=False, help_text="leave blank for no login (e.g. staff who never use the app)",
+                               widget=forms.TextInput(attrs={"autocomplete": "off", "autocapitalize": "none"}))
+    # autocomplete=new-password: stops Chrome filling in the OWNER's saved password,
+    # which would silently set someone else's password to yours on Save.
+    password = forms.CharField(required=False, widget=forms.PasswordInput(render_value=False,
+                               attrs={"autocomplete": "new-password"}),
                                help_text="type to set or change; leave blank to keep")
     can_login = forms.BooleanField(required=False, initial=True)
     is_owner = forms.BooleanField(required=False, help_text="can open Settings")
@@ -227,3 +231,28 @@ def categories(request):
         "categories": Category.objects.all(), "form": CategoryForm(),
         "used": set(LedgerEntry.objects.values_list("category_id", flat=True).distinct()),
     })
+
+
+@superuser_required
+def person_remove(request, pk):
+    """Remove a person record that was made by mistake (duplicate, typo). Only
+    allowed when it has no login and nothing in the books points at it — money
+    history is never deleted."""
+    from django.db.models import Q
+    from .models import Invoice, PayrollPeriod, ShareEvent
+    p = get_object_or_404(Person, pk=pk)
+    if request.method != "POST":
+        return redirect("ledger:settings_person", pk=pk)
+    used = (LedgerEntry.objects.filter(Q(paid_by=p) | Q(funded_by=p) | Q(counterparty=p) | Q(created_by=p) | Q(confirmed_by=p)).exists()
+            or ShareEvent.objects.filter(shared_by=p).exists()
+            or PayrollPeriod.objects.filter(staff=p).exists()
+            or Invoice.objects.filter(created_by=p).exists())
+    if p.user_id:
+        messages.error(request, f"{p.name} has a login — clear the username first, or keep them.")
+    elif used:
+        messages.error(request, f"{p.name} appears in the books, so can't be removed. Untick 'Can sign in' instead.")
+    else:
+        name = p.name; p.delete()
+        messages.success(request, f"Removed {name}.")
+        return redirect("ledger:settings")
+    return redirect("ledger:settings_person", pk=pk)

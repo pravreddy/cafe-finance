@@ -2,7 +2,7 @@
 {% block title %}{% if person %}{{ person.name }}{% else %}New person{% endif %} · Settings{% endblock %}
 {% block content %}
 <p><a class="muted" href="{% url 'ledger:settings' %}">← Settings</a></p>
-<form method="post" class="card">{% csrf_token %}
+<form method="post" class="card" autocomplete="off">{% csrf_token %}
   <h1>{% if person %}{{ person.name }}{% else %}Add a person{% endif %}</h1>
   {{ form.non_field_errors }}
   <label>Name</label>{{ form.name }}{{ form.name.errors }}
@@ -26,4 +26,10 @@
   <label><input type="checkbox" name="is_owner" {% if form.is_owner.value %}checked{% endif %}> Owner — can open Settings</label>
   <div class="sticky"><button class="btn">Save</button> <a class="btn secondary" href="{% url 'ledger:settings' %}">Cancel</a></div>
 </form>
+{% if person and not has_login %}
+<form method="post" action="{% url 'ledger:settings_person_remove' person.pk %}" class="card" onsubmit="return confirm('Remove {{ person.name|escapejs }}?');">{% csrf_token %}
+  <div class="muted">Made by mistake (a duplicate or a typo)? Remove it. Only possible while nothing in the books points at this person.</div>
+  <div style="margin-top:8px"><button class="btn danger small">Remove {{ person.name }}</button></div>
+</form>
+{% endif %}
 {% endblock %}
