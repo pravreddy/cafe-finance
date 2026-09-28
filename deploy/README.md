@@ -5,8 +5,8 @@ Same shape as `avyangah-infra/stacks/guhya-pos`, kept here so the repo is self-c
 
 One-time:
 1. DNS: `ledger.cafegopala.in` A → the box.
-2. `bash deploy/cert.sh` (Let's Encrypt via the shared certbot webroot).
-3. Push to GitHub so CI builds `ghcr.io/pravreddy/cafe-finance:latest`.
+2. Cert: `cd ../avyangah-infra && bash certbot/issue-cert.sh ledger.cafegopala.in` (shared script; renews with every other domain).
+3. Repo + secrets: `avyangah-infra/docs/new-repo.md` (`bin/repo-secrets.sh pravreddy/cafe-finance`), then push so CI builds `ghcr.io/pravreddy/cafe-finance:latest`.
 
 **Step-by-step go-live: [GO-LIVE.md](GO-LIVE.md).**
 

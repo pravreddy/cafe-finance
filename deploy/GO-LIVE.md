@@ -17,33 +17,21 @@ cd server && USE_SQLITE=1 DOC_AI_PROVIDER=mock python3 manage.py test   # 27 OK 
 
 ---
 
-## 1. GitHub (Mac)
+## 1. GitHub repo + secrets (Mac)
+
+Standard steps for every app — see `avyangah-infra/docs/new-repo.md`.
 
 ```bash
 cd ~/Projects/github/cafe-finance
 gh repo create pravreddy/cafe-finance --private --source=. --remote=origin --push
-# no gh?  create the repo empty on github.com, then:
-#   git remote add origin git@github.com:pravreddy/cafe-finance.git && git push -u origin main
+
+cd ~/Projects/github/avyangah-infra
+bash bin/repo-secrets.sh pravreddy/cafe-finance     # sets UK_SERVER_IP, SSH_USER, SSH_PRIVATE_KEY, GHCR_TOKEN
 ```
 
-Secrets — same four as guhya-pos (Settings → Secrets and variables → Actions):
-
-```bash
-gh secret set UK_SERVER_IP     --repo pravreddy/cafe-finance --body "88.99.167.49"
-gh secret set SSH_USER         --repo pravreddy/cafe-finance --body "deploy"
-gh secret set SSH_PRIVATE_KEY  --repo pravreddy/cafe-finance < ~/.ssh/<the key guhya-pos CI uses>
-gh secret set GHCR_TOKEN       --repo pravreddy/cafe-finance --body "<the read:packages PAT guhya-pos uses>"
-```
-
-Copy the values from the guhya-pos repo's secrets page if unsure which key/token.
-
-**Check:** Actions tab → `build-test-deploy` runs. `build` and `test` must go
-green (image on ghcr, migrations from scratch, 27 tests). `deploy` will FAIL
-the first time — expected, the cert doesn't exist yet. Continue.
-
-Package visibility: github.com/pravreddy?tab=packages → `cafe-finance` →
-Package settings → make sure the server's GHCR_TOKEN can read it (private is
-fine; it pulls with the token).
+**Check:** Actions tab → `build-test-deploy`: `build` and `test` green (image on
+ghcr, migrations from scratch, 27 tests). `deploy` fails the first time — no cert
+yet — expected. Continue.
 
 ---
 
@@ -55,15 +43,18 @@ Add: `A  ledger  →  88.99.167.49`  (TTL 300).
 
 ---
 
-## 3. TLS certificate (Mac → server, one-time)
+## 3. TLS certificate (Mac → server, one-time) — the shared avyangah-infra script
 
 ```bash
-cd ~/Projects/github/cafe-finance
-bash deploy/cert.sh            # SSH_HOST=hetzner-prod by default, like guhya-pos
+cd ~/Projects/github/avyangah-infra
+bash certbot/issue-cert.sh ledger.cafegopala.in     # asks for your sudo password on the box
 ```
 
-**Check:** ends with `cert installed for ledger.cafegopala.in`.
-`ssh hetzner-prod 'ls -l /mnt/nvme_data/ssl/ | grep ledger'` shows fullchain + privkey.
+Issues into `/etc/letsencrypt`, so the box's certbot.timer renews it with every
+other domain (avyangah-infra/docs/cert-renewal.md). Nothing cert-related lives in
+this repo.
+
+**Check:** `ssh hetzner-prod 'ls -l /mnt/nvme_data/ssl/ | grep ledger'` shows fullchain + privkey.
 
 ---
 

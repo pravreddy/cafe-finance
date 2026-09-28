@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # deploy.sh — RUN ON YOUR LAPTOP. One command to deploy/update cafe-finance.
 #   bash deploy/deploy.sh
-# Prereqs (one-time): DNS A record ledger.cafegopala.in -> server IP, `bash deploy/cert.sh`,
+# Prereqs (one-time): DNS A record ledger.cafegopala.in -> server IP, `bash ../avyangah-infra/certbot/issue-cert.sh ledger.cafegopala.in`,
 # and the image on ghcr (pushed by this repo's CI on every main build).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

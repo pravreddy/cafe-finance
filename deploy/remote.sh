@@ -44,7 +44,7 @@ $DC up -d cafe-finance-worker
 
 echo "==> 5/6 nginx route"
 if [ ! -f "$CERT" ]; then
-  echo "    cert not found — run deploy/cert.sh from your laptop, then re-run deploy.sh. (containers are up; route pending)"
+  echo "    cert not found — run avyangah-infra/certbot/issue-cert.sh ledger.cafegopala.in from your laptop, then re-run deploy.sh. (containers are up; route pending)"
   exit 0
 fi
 cp /tmp/ledger.cafegopala.in.conf "$CAREAI/site-confs/ledger.cafegopala.in.conf"
