@@ -252,3 +252,17 @@ Rule: the proofs volume is rsynced nightly to the Hetzner Storage Box with the P
 
 ### Order to build them
 9.2 funded_by and 9.8 month close change the model — do them before real data. 9.3 salaries and 9.6 income next (both reuse the installment pattern). The rest are screens and can follow usage.
+
+## 10. Parked — later stories (2026-09-28)
+
+Not to be built now. Written down so the current design keeps the door open.
+
+- **Multi-tenant.** Today: one partnership, three cafes under ledger.cafegopala.in.
+  Later: a `Tenant` above `Cafe`, `Person` scoped to a tenant, one hostname per
+  tenant like the white-label POS fronts. Every row already carries `cafe`, and no
+  code hard-codes a cafe name (only `seed_basic` does), so this is additive.
+- **Phone photos → backup disk (instead of Google Photos / Drive).** The same
+  Android app and share-in path, a second share "kind" (album/backup, not money)
+  that stores by hash into a separate area and skips the document AI, synced to
+  the Hetzner Storage Box with the existing rsync backup. Nothing about the
+  ledger changes.
