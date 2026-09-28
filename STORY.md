@@ -261,8 +261,13 @@ Not to be built now. Written down so the current design keeps the door open.
   Later: a `Tenant` above `Cafe`, `Person` scoped to a tenant, one hostname per
   tenant like the white-label POS fronts. Every row already carries `cafe`, and no
   code hard-codes a cafe name (only `seed_basic` does), so this is additive.
-- **Phone photos → backup disk (instead of Google Photos / Drive).** The same
-  Android app and share-in path, a second share "kind" (album/backup, not money)
-  that stores by hash into a separate area and skips the document AI, synced to
-  the Hetzner Storage Box with the existing rsync backup. Nothing about the
-  ledger changes.
+- **Phone photos & docs → cold storage on the Hetzner Storage Box (not Google).**
+  Purpose: stop paying per-photo cloud storage; keep things in backup, read them
+  back rarely and slowly. Shape: phone share (same Android app, a "backup" kind,
+  no document AI) → short-lived staging on the box → rsync to the Storage Box →
+  staging copy deleted only after the Storage Box copy is verified by hash.
+  Storage Box snapshots on, so a bad sync can't erase history; the box itself is
+  never the long-term home (NVMe failure, Sep 2026). The app shows "N items safely
+  on the backup" so the phone/Google copies can be deleted with confidence — it
+  cannot delete those itself. Retrieval: a slow browse page, or SFTP/WebDAV.
+  Nothing about the ledger changes.
