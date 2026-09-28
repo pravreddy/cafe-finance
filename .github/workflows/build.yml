@@ -92,7 +92,7 @@ jobs:
           host: ${{ secrets.UK_SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "deploy/docker-compose.cafe-finance.yml,deploy/ledger.guhya.co.in.conf,deploy/remote.sh"
+          source: "deploy/docker-compose.cafe-finance.yml,deploy/ledger.cafegopala.in.conf,deploy/remote.sh"
           target: /tmp/cafe-finance-ci
           strip_components: 1
       - uses: appleboy/ssh-action@v1.0.3
@@ -104,6 +104,6 @@ jobs:
             set -e
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             cp /tmp/cafe-finance-ci/docker-compose.cafe-finance.yml ~/careai/docker-compose.cafe-finance.yml
-            cp /tmp/cafe-finance-ci/ledger.guhya.co.in.conf /tmp/ledger.guhya.co.in.conf
+            cp /tmp/cafe-finance-ci/ledger.cafegopala.in.conf /tmp/ledger.cafegopala.in.conf
             bash /tmp/cafe-finance-ci/remote.sh
             docker image prune -f

@@ -3,7 +3,7 @@
 #   ./setup.sh  -> install deps, generate android/, install our Kotlin, patch the manifest, build a debug APK
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"; cd "$ROOT"
-PKG_DIR="android/app/src/main/java/in/co/guhya/cafefinance"
+PKG_DIR="android/app/src/main/java/in/cafegopala/ledger"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 say() { printf "\n\033[1;32m==> %s\033[0m\n" "$1"; }
 warn() { printf "\033[1;33m!! %s\033[0m\n" "$1"; }

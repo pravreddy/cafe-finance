@@ -24,7 +24,7 @@ media is fetched.
 mkdir -p ~/.cafe-finance
 cat > ~/.cafe-finance/config.json <<'EOF'
 {
-  "server": "https://ledger.guhya.co.in",
+  "server": "https://ledger.cafegopala.in",
   "token": "<API_TOKEN from server/.env>",
   "groups": ["CG fin", "Krishna Kitchen Finance"]
 }

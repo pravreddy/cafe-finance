@@ -1,9 +1,9 @@
 {
-  "appId": "in.co.guhya.cafefinance",
+  "appId": "in.cafegopala.ledger",
   "appName": "Cafe Finance",
   "webDir": "www",
   "server": {
-    "url": "https://ledger.guhya.co.in",
+    "url": "https://ledger.cafegopala.in",
     "androidScheme": "https",
     "cleartext": false
   },

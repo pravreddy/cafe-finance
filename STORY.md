@@ -185,7 +185,7 @@ launchd plist; heartbeat URL for a dead-man's switch.
 - Reports: first cut built (/pnl/ month P&L, /balance/ partner balance); FastPOS income pull, accountant export still pending.
 - FastPOS income pull.
 - Real login for phones (username/password now; OTP or per-person link later).
-- The server-side compose/nginx stack in `avyangah-infra` and the DNS for `ledger.guhya.co.in`.
+- The server-side compose/nginx stack in `avyangah-infra` and the DNS for `ledger.cafegopala.in`.
 - Reconciler schema verified against the installed WhatsApp version (`--probe` is the first step).
 - Capacitor wrap / iOS share extension (only if an iPhone appears).
 

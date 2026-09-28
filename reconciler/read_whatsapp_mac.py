@@ -18,7 +18,7 @@ Modes
 
 Config: ~/.cafe-finance/config.json
   {
-    "server": "https://ledger.guhya.co.in",
+    "server": "https://ledger.cafegopala.in",
     "token": "the API_TOKEN from the server .env",
     "groups": ["CG fin", "Krishna Kitchen Finance"],
     "heartbeat_url": "https://uptime.../api/push/xxxx?status=up"   (optional)

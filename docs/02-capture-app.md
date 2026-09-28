@@ -29,7 +29,7 @@ Works from phone WhatsApp and from WhatsApp Web via "Download → share".
 ## Tech choice
 
 **v1: PWA with Web Share Target** (`share_target` in `manifest.json`).
-- Served from the Hetzner box (e.g. `https://ledger.guhya.co.in`), "Add to Home Screen"
+- Served from the Hetzner box (e.g. `https://ledger.cafegopala.in`), "Add to Home Screen"
 - Chrome on Android lists installed PWAs in the share sheet; receives files via POST
 - Forward-to-WhatsApp via `navigator.share({ files, text })` (Android Chrome supports files)
 - No APK, no Play Store, updates instantly. Everyone is on Android.

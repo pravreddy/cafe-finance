@@ -9,12 +9,12 @@ Each step is usable on its own. Stop anywhere and still have value.
 | 3 | **Reconciler on the Mac** — `--probe` first, then `--push --backfill`, then launchd + dead-man's switch | ✅ script written; schema NOT yet verified on the real DB — `--probe` is the next concrete step |
 | 4 | **Email** — Gmail label → IMAP → attachments → same door | ✅ script written; needs an App Password and a label |
 | 5 | **Reports** — monthly P&L (FastPOS income pull), partner balance, open invoices, unproven list | ⬜ not started |
-| 6 | Server stack in `avyangah-infra/stacks/cafe-finance/`, nginx conf, DNS `ledger.guhya.co.in` | ⬜ not started |
+| 6 | Server stack in `avyangah-infra/stacks/cafe-finance/`, nginx conf, DNS `ledger.cafegopala.in` | ⬜ not started |
 | 7 | Later: Capacitor wrap if iPhone ever appears; OBA application for the official Groups API | ⬜ parked |
 
 ## Open questions
 
-- Folder/domain name: `cafe-finance` / `ledger.guhya.co.in` — OK?
+- Folder/domain name: `cafe-finance` / `ledger.cafegopala.in` — OK?
 - Vision provider default: Gemini (fast, paise per document, key already in use for FastPOS)
   vs Ollama (free, slow)? Code defaults to Gemini when a key is set.
 - Who confirms entries — Praveen only, or any partner can confirm another's? (`Person.can_confirm`)

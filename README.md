@@ -63,7 +63,7 @@ USE_SQLITE=1 DOC_AI_PROVIDER=mock python manage.py test
 Or with Docker: `docker compose up --build` (Postgres + app on :8020).
 
 The share-sheet part needs HTTPS and Android Chrome: deploy to
-`ledger.guhya.co.in`, open it, "Add to Home screen", and **Cafe Finance**
+`ledger.cafegopala.in`, open it, "Add to Home screen", and **Cafe Finance**
 appears in the share sheet.
 
 ## Docs

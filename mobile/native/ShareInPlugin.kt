@@ -1,4 +1,4 @@
-package `in`.co.guhya.cafefinance
+package `in`.cafegopala.ledger
 
 import android.content.Intent
 import android.net.Uri

@@ -6,7 +6,7 @@
 #
 # On the Hetzner box this becomes a service in the shared careai compose
 # (avyangah-infra/stacks/cafe-finance/) behind careai-nginx at
-# ledger.guhya.co.in — same pattern as guhya-pos. See docs/05-plan.md.
+# ledger.cafegopala.in — same pattern as guhya-pos. See docs/05-plan.md.
 name: cafe-finance
 
 services:

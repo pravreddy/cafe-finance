@@ -12,7 +12,7 @@ it to vendor mails. Gmail exposes labels as IMAP folders.
 
 Env (or ~/.cafe-finance/mail.json with the same keys, lower-case):
   IMAP_HOST=imap.gmail.com   IMAP_USER=you@gmail.com   IMAP_PASSWORD=app-password
-  IMAP_FOLDER="Cafe invoices"   CF_SERVER=https://ledger.guhya.co.in   CF_TOKEN=...
+  IMAP_FOLDER="Cafe invoices"   CF_SERVER=https://ledger.cafegopala.in   CF_TOKEN=...
   CF_CAFE=cafegopala   (optional default cafe slug)
 
 Run from cron on the Hetzner box, or by hand:

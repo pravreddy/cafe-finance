@@ -2,7 +2,7 @@
 # remote-cert.sh — RUNS ON THE SERVER with sudo. Same recipe as guhya-pos.
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo "must run as root"; exit 1; }
-EMAIL="praveen.moj@gmail.com"; DOMAIN="ledger.guhya.co.in"
+EMAIL="praveen.moj@gmail.com"; DOMAIN="ledger.cafegopala.in"
 SSL_DIR="/mnt/nvme_data/ssl"; WEBROOT="/var/www/certbot"; SITES="/home/deploy/careai/site-confs"
 if [ ! -f "${SSL_DIR}/${DOMAIN}-fullchain.pem" ]; then
   printf 'server {\n    listen 80;\n    server_name %s;\n    location /.well-known/acme-challenge/ { root %s; allow all; default_type "text/plain"; }\n    location / { return 301 https://$host$request_uri; }\n}\n' "$DOMAIN" "$WEBROOT" > "${SITES}/${DOMAIN}.conf"
