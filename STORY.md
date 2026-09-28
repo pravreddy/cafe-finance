@@ -94,7 +94,7 @@ up for a human to fill in by hand. The phone shows "being read" until then.
 
 Why a table and not Kafka: three cafes produce a few dozen documents a day. A
 `state` column on Proof claimed with `SELECT … FOR UPDATE SKIP LOCKED` gives
-durability, retries, ordering and "what is waiting" in the admin with zero new
+durability, retries, ordering and "what is waiting" on the Settings page with zero new
 infrastructure. If volume ever needs Kafka or Redis, only `claim_next()` changes;
 intake and processing stay the same. The final goal is the accounts being
 updated — not a fast response.
