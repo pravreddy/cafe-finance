@@ -26,7 +26,8 @@ cat > ~/.cafe-finance/config.json <<'EOF'
 {
   "server": "https://ledger.cafegopala.in",
   "token": "<API_TOKEN from server/.env>",
-  "groups": ["CG fin", "Krishna Kitchen Finance"]
+  "groups": ["CG fin", "Krishna Kitchen Finance"],
+  "my_number": "44XXXXXXXXXX"
 }
 EOF
 python3 reconciler/read_whatsapp_mac.py --push --backfill --dry-run   # look first
@@ -44,3 +45,14 @@ break is noticed within a day (same dead-man's-switch pattern as the backups).
 - The schema is Meta's; `--probe` tells you the moment a column moves.
 - Same message is never sent twice (cursor per group in `~/.cafe-finance/state.json`);
   the server also dedups by `(group_name, wa_message_pk)` and by file hash.
+
+## Whose number is whose
+
+Each person's WhatsApp numbers live in **Settings → People** (one per line, with
+country code — a UK and an Indian number for the same person is normal). A group
+post from any of them is credited to that person. `my_number` above is the number
+the Mac's WhatsApp is signed in with, because WhatsApp stores your own posts as
+"You" with no number. Newer WhatsApp versions sometimes show a group member as an
+anonymous `…@lid` id instead of a number; those fall back to matching the sender's
+display name against the person's name, so keep names in Settings the way they
+appear in WhatsApp, or share that proof from the app instead.

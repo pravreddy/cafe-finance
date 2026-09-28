@@ -56,7 +56,10 @@ class Person(models.Model):
                                 on_delete=models.SET_NULL, related_name="person")
     name = models.CharField(max_length=80)
     phone = models.CharField(max_length=20, blank=True)       # +91…
-    whatsapp_jid = models.CharField(max_length=60, blank=True)  # 9198…@s.whatsapp.net
+    # Every WhatsApp number this person posts from, digits with country code:
+    # ["919845478093", "447700900123"] — an Indian business number and a UK one
+    # are the same person. The WhatsApp reader matches group senders against these.
+    whatsapp_numbers = models.JSONField(default=list, blank=True)
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.PARTNER)
     default_cafe = models.ForeignKey(Cafe, null=True, blank=True, on_delete=models.SET_NULL)
     # Confirmers decide what reaches the reports.
@@ -67,6 +70,28 @@ class Person(models.Model):
 
     def __str__(self):
         return self.name
+
+    @staticmethod
+    def digits_of(jid_or_number: str) -> str:
+        """'919845478093@s.whatsapp.net' / '+91 98454 78093' -> '919845478093'.
+        Only the part before '@' counts: a '…@lid' id is not a phone number."""
+        s = (jid_or_number or "").strip()
+        if "@" in s:
+            local, domain = s.split("@", 1)
+            if domain not in ("s.whatsapp.net", "c.us"):
+                return ""
+            s = local.split(":", 1)[0]          # '4477…:12@s.whatsapp.net' (multi-device suffix)
+        return "".join(c for c in s if c.isdigit())
+
+    @classmethod
+    def for_whatsapp(cls, jid_or_number: str):
+        d = cls.digits_of(jid_or_number)
+        if len(d) < 8:
+            return None
+        for p in cls.objects.exclude(whatsapp_numbers=[]):
+            if d in (p.whatsapp_numbers or []):
+                return p
+        return None
 
 
 class Category(models.Model):

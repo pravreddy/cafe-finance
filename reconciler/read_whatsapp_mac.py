@@ -21,6 +21,8 @@ Config: ~/.cafe-finance/config.json
     "server": "https://ledger.cafegopala.in",
     "token": "the API_TOKEN from the server .env",
     "groups": ["CG fin", "Krishna Kitchen Finance"],
+    "my_number": "447700900123",   # the number THIS Mac's WhatsApp is signed in with
+                                   # (your own posts show as "You" with no number)
     "heartbeat_url": "https://uptime.../api/push/xxxx?status=up"   (optional)
   }
 
@@ -166,9 +168,10 @@ def member_jid_for(con, gmember_pk):
         return ""
 
 
-def sender_label(con, row, names):
+def sender_label(con, row, names, my_number=""):
     if row["from_me"]:
-        return "You", ""
+        d = "".join(c for c in (my_number or "") if c.isdigit())
+        return "You", (f"{d}@s.whatsapp.net" if d else "")
     jid = row["from_jid"] or member_jid_for(con, row["group_member"])
     return (names.get(jid) or jid.split("@")[0] or "?"), jid
 
@@ -270,7 +273,7 @@ def cmd_push(con, backfill: bool, dry: bool):
         for r in rows:
             if r["type"] not in MEDIA_TYPES and not (r["text"] or "").strip():
                 state["cursor"][group] = r["pk"]; continue     # stickers, calls, etc.
-            who, jid = sender_label(con, r, names)
+            who, jid = sender_label(con, r, names, cfg.get("my_number", ""))
             file_path = None
             if r["media_path"]:
                 full = CONTAINER / r["media_path"]

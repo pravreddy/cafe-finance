@@ -12,7 +12,7 @@
 <td>{{ p.get_role_display }}</td>
 <td>{% if p.user %}{{ p.user.username }}{% if not p.user.is_active %} <span class="pill rejected">off</span>{% elif not p.user.has_usable_password %} <span class="pill pending">no password</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
 <td>{% if p.can_confirm %}✓{% endif %}</td>
-<td>{% if p.whatsapp_jid %}✓{% else %}<span class="muted">—</span>{% endif %}</td>
+<td>{% for n in p.whatsapp_numbers %}<div style="white-space:nowrap">+{{ n }}</div>{% empty %}<span class="muted">—</span>{% endfor %}</td>
 <td><a class="btn secondary small" href="{% url 'ledger:settings_person' p.pk %}">Edit</a></td></tr>{% endfor %}
 </table>
 <div style="margin-top:10px"><a class="btn small" href="{% url 'ledger:settings_person_new' %}">＋ Add person</a></div></div>

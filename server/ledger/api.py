@@ -42,7 +42,7 @@ def _when(s):
 
 def _person_for(sender: str, jid: str = ""):
     if jid:
-        p = Person.objects.filter(whatsapp_jid=jid).first()
+        p = Person.for_whatsapp(jid)
         if p:
             return p
     if sender:

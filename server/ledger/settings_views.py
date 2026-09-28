@@ -36,8 +36,8 @@ class PersonForm(forms.Form):
     name = forms.CharField(max_length=80)
     role = forms.ChoiceField(choices=Person.Role.choices)
     phone = forms.CharField(max_length=20, required=False)
-    whatsapp_jid = forms.CharField(max_length=60, required=False,
-                                   help_text="e.g. 919876543210@s.whatsapp.net — lets the WhatsApp reader credit this person")
+    whatsapp_numbers = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}),
+                                       help_text="every number this person uses WhatsApp on, one per line, with country code")
     default_cafe = forms.ModelChoiceField(queryset=Cafe.objects.all(), required=False)
     can_confirm = forms.BooleanField(required=False)
     # login
@@ -57,9 +57,23 @@ class PersonForm(forms.Form):
             self.add_error("username", "A password needs a username.")
         if d.get("password") and len(d["password"]) < 8:
             self.add_error("password", "At least 8 characters.")
-        j = (d.get("whatsapp_jid") or "").strip()
-        if j and "@" not in j:
-            d["whatsapp_jid"] = f"{''.join(c for c in j if c.isdigit())}@s.whatsapp.net"
+        nums, bad = [], []
+        for line in (d.get("whatsapp_numbers") or "").replace(",", "\n").splitlines():
+            raw = line.strip()
+            if not raw:
+                continue
+            digits = Person.digits_of(raw)
+            if raw.startswith("00"):
+                digits = digits[2:]
+            if raw.startswith("0") and not raw.startswith("00"):
+                bad.append(f"{raw} — add the country code: 91… for India, 44… for UK (drop the leading 0)")
+            elif len(digits) < 10 or len(digits) > 15:
+                bad.append(f"{raw} — doesn't look like a full number with country code")
+            elif digits not in nums:
+                nums.append(digits)
+        if bad:
+            self.add_error("whatsapp_numbers", "; ".join(bad))
+        d["whatsapp_numbers"] = nums
         return d
 
 
@@ -111,7 +125,11 @@ def person_edit(request, pk=None):
                 with transaction.atomic():
                     p = person or Person()
                     p.name, p.role, p.phone = d["name"], d["role"], d["phone"]
-                    p.whatsapp_jid, p.default_cafe, p.can_confirm = d["whatsapp_jid"], d["default_cafe"], d["can_confirm"]
+                    clash = [(n, o) for n in d["whatsapp_numbers"]
+                             for o in Person.objects.exclude(pk=p.pk) if n in (o.whatsapp_numbers or [])]
+                    if clash:
+                        raise IntegrityError(f"+{clash[0][0]} is already {clash[0][1].name}'s number")
+                    p.whatsapp_numbers, p.default_cafe, p.can_confirm = d["whatsapp_numbers"], d["default_cafe"], d["can_confirm"]
                     uname = (d["username"] or "").strip().lower()
                     if uname:
                         user = p.user if p.user_id else None
@@ -147,7 +165,7 @@ def person_edit(request, pk=None):
     else:
         form = PersonForm(initial={
             "name": person.name if person else "", "role": person.role if person else "partner",
-            "phone": person.phone if person else "", "whatsapp_jid": person.whatsapp_jid if person else "",
+            "phone": person.phone if person else "", "whatsapp_numbers": "\n".join("+" + n for n in (person.whatsapp_numbers or [])) if person else "",
             "default_cafe": person.default_cafe_id if person else Cafe.objects.filter(is_active=True).first(),
             "can_confirm": person.can_confirm if person else False,
             "username": u.username if u else "", "can_login": u.is_active if u else True,

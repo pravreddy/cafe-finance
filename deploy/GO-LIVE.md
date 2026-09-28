@@ -98,7 +98,7 @@ Everything else is on **https://ledger.cafegopala.in/settings/** (only owners se
 the ⚙ Settings link). Nothing in this app is ever done in `/admin/`.
 
 - **People** → Srinivas → username `srinivas`, a password (8+ characters, tell him
-  in person), tick *Can confirm*; WhatsApp ID = his number with 91. Same for
+  in person), tick *Can confirm*; WhatsApp numbers = every number he posts from, one per line with country code. Same for
   Priyanka (no *Can confirm*). Add staff with no login.
 - **Cafes** → Cafe Gopala is trading with both finance groups; cafes 2 and 3 stay
   "not open" until they open — then rename, tick *Trading*, move their group.
@@ -167,7 +167,8 @@ schema differs from what the script expects and needs a one-line fix.
 mkdir -p ~/.cafe-finance && cat > ~/.cafe-finance/config.json <<'EOF'
 { "server": "https://ledger.cafegopala.in",
   "token": "<API_TOKEN from step 4>",
-  "groups": ["CG fin", "Krishna Kitchen Finance"] }
+  "groups": ["CG fin", "Krishna Kitchen Finance"],
+  "my_number": "<the number THIS Mac's WhatsApp uses, with country code, e.g. 447700900123>" }
 EOF
 python3 reconciler/read_whatsapp_mac.py --push --backfill --dry-run   # what it WOULD send
 python3 reconciler/read_whatsapp_mac.py --push --backfill             # history in; Ollama chews for hours

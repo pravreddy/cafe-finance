@@ -502,11 +502,11 @@ class SettingsTests(TestCase):
         r = self.c.post(f"/settings/people/{srini.pk}/", {
             "name": "Srinivas", "role": "partner", "default_cafe": srini.default_cafe_id, "can_confirm": "on",
             "username": "srinivas", "password": "a-good-password", "can_login": "on",
-            "whatsapp_jid": "91 98765 43210"})
+            "whatsapp_numbers": "+91 98765 43210\n0044 7700 900123"})
         self.assertEqual(r.status_code, 302, r.content[:400])
         srini.refresh_from_db()
         self.assertEqual(srini.user.username, "srinivas")
-        self.assertEqual(srini.whatsapp_jid, "919876543210@s.whatsapp.net")
+        self.assertEqual(srini.whatsapp_numbers, ["919876543210", "447700900123"])
         self.assertFalse(srini.user.is_superuser)
         c2 = Client()
         self.assertTrue(c2.login(username="srinivas", password="a-good-password"))
@@ -587,3 +587,44 @@ class CaseInsensitiveLoginTests(TestCase):
         r = Client().post("/login/", {"username": "Srinivas", "password": "a-good-password"})
         self.assertEqual(r.status_code, 302)
         self.assertContains(Client().get("/login/"), 'autocapitalize="none"')
+
+
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
+class WhatsAppNumbersTests(TestCase):
+    def setUp(self):
+        call_command("seed_basic", verbosity=0)
+        get_user_model().objects.create_superuser("owner", password="owner-pass-123")
+        self.c = Client(); self.c.login(username="owner", password="owner-pass-123")
+        self.pv = Person.objects.get(name="Praveen")
+
+    def _save(self, nums, who=None):
+        who = who or self.pv
+        return self.c.post(f"/settings/people/{who.pk}/", {"name": who.name, "role": "partner",
+                           "whatsapp_numbers": nums})
+
+    def test_uk_and_india_numbers_both_match(self):
+        self._save("+44 7700 900123\n+91 98454 78093")
+        self.pv.refresh_from_db()
+        self.assertEqual(self.pv.whatsapp_numbers, ["447700900123", "919845478093"])
+        self.assertEqual(Person.for_whatsapp("447700900123@s.whatsapp.net"), self.pv)
+        self.assertEqual(Person.for_whatsapp("919845478093:7@s.whatsapp.net"), self.pv)   # multi-device suffix
+        self.assertIsNone(Person.for_whatsapp("1234567890123@lid"))                         # lid is not a phone
+
+    def test_leading_zero_without_country_code_is_rejected(self):
+        r = self._save("09845478093")
+        self.assertContains(r, "add the country code")
+
+    def test_same_number_cannot_belong_to_two_people(self):
+        self._save("+91 98454 78093")
+        r = self._save("+91 98454 78093", who=Person.objects.get(name="Srinivas"))
+        self.assertContains(r, "already Praveen")
+
+    def test_reconciler_credits_either_number(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self._save("+44 7700 900123\n+91 98454 78093")
+        r = Client().post("/api/reconcile/", {"group_name": "CG fin", "wa_message_pk": "m1", "sender": "Praveen UK",
+                          "sender_jid": "447700900123@s.whatsapp.net", "sent_at": "2026-09-14T15:03:00+05:30",
+                          "file": SimpleUploadedFile("pay_083414546430.png", PNG_A, content_type="image/png")},
+                          HTTP_X_API_TOKEN="t0k")
+        e = LedgerEntry.objects.get(pk=r.json()["entry_id"])
+        self.assertEqual(e.paid_by, self.pv)

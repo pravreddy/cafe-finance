@@ -10,11 +10,9 @@
     <div style="flex:1"><label>Role</label>{{ form.role }}</div>
     <div style="flex:1"><label>Main cafe</label>{{ form.default_cafe }}</div>
   </div>
-  <div class="row">
-    <div style="flex:1"><label>Phone</label>{{ form.phone }}</div>
-    <div style="flex:1"><label>WhatsApp ID</label>{{ form.whatsapp_jid }}{{ form.whatsapp_jid.errors }}</div>
-  </div>
-  <p class="muted">WhatsApp ID: just type the number with 91, e.g. 919876543210 — the rest is added for you.</p>
+  <label>Phone (to call)</label>{{ form.phone }}
+  <label>WhatsApp numbers</label>{{ form.whatsapp_numbers }}{{ form.whatsapp_numbers.errors }}
+  <p class="muted">Every number this person uses WhatsApp on — one per line, with country code: <b>+91 98454 78093</b> (India), <b>+44 7700 900123</b> (UK). A post in the finance group from any of them is credited to this person.</p>
   <label><input type="checkbox" name="can_confirm" {% if form.can_confirm.value %}checked{% endif %}> Can confirm entries (they count in reports once confirmed)</label>
 
   <h2>Login</h2>
