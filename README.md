@@ -74,6 +74,7 @@ appears in the share sheet.
 - [docs/03-reconciler.md](docs/03-reconciler.md) — reading the WhatsApp Desktop DB safely
 - [docs/04-data-model.md](docs/04-data-model.md) — ledger, proofs, invoices, dedup, partner balance
 - [docs/05-plan.md](docs/05-plan.md) — build order and open questions
+- [deploy/GO-LIVE.md](deploy/GO-LIVE.md) — step-by-step: GitHub, DNS, cert, deploy, phones, reconciler, real-world test
 
 ## Status
 
