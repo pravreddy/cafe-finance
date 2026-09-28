@@ -11,11 +11,14 @@ from django.core.management.base import BaseCommand
 from ledger.models import Cafe, Category, Person
 
 CAFES = [
-    # name, slug, fastpos tenant, WhatsApp groups the reconciler should map here
-    ("Cafe Gopala", "cafegopala", "cafegopala", ["CG fin"]),
-    ("Krishna Kitchen", "krishna-kitchen", "", ["Krishna Kitchen Finance"]),
-    # third business — rename in the admin once decided (scope: three cafes only)
-    ("Cafe 3 (rename me)", "cafe-3", "", []),
+    # name, slug, fastpos tenant, WhatsApp groups the reconciler maps here, active
+    # 2026-09-28: only Cafe Gopala is trading, so it is ONE unit for all income and
+    # expenses — both finance groups map to it. The other two places are still being
+    # set up: rows exist but inactive (hidden from dropdowns, reports and the
+    # reconciler) until you rename + activate them in /admin/ and move their group.
+    ("Cafe Gopala", "cafegopala", "cafegopala", ["CG fin", "Krishna Kitchen Finance"], True),
+    ("Cafe 2 (not open yet)", "cafe-2", "", [], False),
+    ("Cafe 3 (not open yet)", "cafe-3", "", [], False),
 ]
 
 CATEGORIES = [
@@ -58,9 +61,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         cafes = {}
-        for name, slug, tenant, groups in CAFES:
-            c, _ = Cafe.objects.update_or_create(slug=slug, defaults={
-                "name": name, "fastpos_tenant": tenant, "whatsapp_groups": groups})
+        for name, slug, tenant, groups, active in CAFES:
+            c, created = Cafe.objects.get_or_create(slug=slug, defaults={
+                "name": name, "fastpos_tenant": tenant, "whatsapp_groups": groups, "is_active": active})
+            if created is False and slug == "cafegopala" and not c.whatsapp_groups:
+                c.whatsapp_groups = groups; c.save(update_fields=["whatsapp_groups"])
             cafes[slug] = c
         for name, slug, kind, sort in CATEGORIES:
             Category.objects.update_or_create(slug=slug, defaults={"name": name, "kind": kind, "sort": sort})
