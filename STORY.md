@@ -166,6 +166,20 @@ launchd plist; heartbeat URL for a dead-man's switch.
 
 `mail/imap_pull.py` — stdlib only; Gmail label → attachments → `/api/upload/`.
 
+## 5b. Added 2026-09-28 — the app end to end
+
+- **Collect on the phone:** the PWA share target, and now an installable Android app
+  (`mobile/`, Capacitor + a 60-line `ShareIn` Kotlin plugin) so "Cafe Finance" is always
+  in the share sheet. Both post to the same `/share/`.
+- **Analyse on web or phone:** `/reports/` — income, expenses, net, waiting, owed to vendors,
+  salaries left; expenses by category; spend per day; last 6 months; who paid (and whose
+  money); top payees; income by source; the entries; CSV and CSV+proofs zip for the accountant.
+- **Income from the POS:** `manage.py pull_fastpos` reads FastPOS `/api/finance/summary/` per
+  cafe-day with the cafe's owner token → one confirmed POS income row per day (cron 02:15).
+- **Deploy:** `deploy/` — compose overlay on the careai stack, nginx conf, cert + deploy scripts,
+  CI ships and runs them on push to main. Worker uses the shared Ollama; remote.sh pulls
+  `llama3.2-vision` if missing.
+
 ## 6. What is not built yet
 
 - Reports: first cut built (/pnl/ month P&L, /balance/ partner balance); FastPOS income pull, accountant export still pending.

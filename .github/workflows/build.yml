@@ -85,6 +85,16 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Ship stack files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.UK_SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "deploy/docker-compose.cafe-finance.yml,deploy/ledger.guhya.co.in.conf,deploy/remote.sh"
+          target: /tmp/cafe-finance-ci
+          strip_components: 1
       - uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.UK_SERVER_IP }}
@@ -92,21 +102,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            cd /home/deploy/careai
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            DC="docker compose -f docker-compose.yml -f docker-compose.cafe-finance.yml"
-            # The service must exist in the server compose: ship the stack once from
-            # avyangah-infra/stacks/cafe-finance/ (to be written), then this runs.
-            if ! $DC config --services | grep -qx cafe-finance; then
-              echo "❌ server compose has no 'cafe-finance' service yet — ship the stack first"; exit 1
-            fi
-            $DC pull cafe-finance
-            $DC run --rm --no-deps cafe-finance python manage.py migrate --plan
-            $DC up -d --force-recreate cafe-finance
-            for i in $(seq 1 30); do
-              if docker exec cafe-finance curl -sf http://localhost:8000/ping >/dev/null 2>&1; then echo healthy; break; fi
-              sleep 3
-            done
-            docker exec cafe-finance curl -sf http://localhost:8000/ping >/dev/null || { docker logs cafe-finance --tail 50; exit 1; }
+            cp /tmp/cafe-finance-ci/docker-compose.cafe-finance.yml ~/careai/docker-compose.cafe-finance.yml
+            cp /tmp/cafe-finance-ci/ledger.guhya.co.in.conf /tmp/ledger.guhya.co.in.conf
+            bash /tmp/cafe-finance-ci/remote.sh
             docker image prune -f
-            echo "🎉 cafe-finance deployed"

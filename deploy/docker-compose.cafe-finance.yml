@@ -1,0 +1,65 @@
+# cafe-finance — overlay for the shared "careai" stack on the Hetzner box.
+# Shipped by deploy.sh to ~/careai/docker-compose.cafe-finance.yml and run with:
+#   docker compose -f docker-compose.yml -f docker-compose.cafe-finance.yml up -d cafe-finance cafe-finance-worker
+# Reuses careai-postgres (user 'careai', db 'cafe_finance'), the shared Ollama
+# on careai-net, and pulls the image from ghcr (built by this repo's CI).
+services:
+
+  cafe-finance:
+    image: ghcr.io/${GITHUB_USER}/cafe-finance:latest
+    container_name: cafe-finance
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py seed_basic &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120"
+    env_file: .env.cafe-finance
+    environment:
+      - DEBUG=0
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=cafe_finance
+      - POSTGRES_USER=careai
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MEDIA_ROOT=/data/media
+      - DOC_AI_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_VISION_MODEL=llama3.2-vision
+      - OLLAMA_TIMEOUT=600
+      - FASTPOS_BASE_URL=http://guhya-pos-api-blue:8000
+    volumes:
+      - cafe_finance_media:/data/media
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [careai-net]
+
+  # The reader. Same image, no web workers; reads queued proofs with Ollama and
+  # updates the records. Runs no migrations — the web container owns the schema.
+  cafe-finance-worker:
+    image: ghcr.io/${GITHUB_USER}/cafe-finance:latest
+    container_name: cafe-finance-worker
+    restart: unless-stopped
+    command: python manage.py process_queue
+    env_file: .env.cafe-finance
+    environment:
+      - DEBUG=0
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=cafe_finance
+      - POSTGRES_USER=careai
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MEDIA_ROOT=/data/media
+      - DOC_AI_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_VISION_MODEL=llama3.2-vision
+      - OLLAMA_TIMEOUT=600
+    volumes:
+      - cafe_finance_media:/data/media
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [careai-net]
+
+volumes:
+  # Proofs are the evidence. Back this volume up with the Postgres dump
+  # (backup/ in avyangah-infra → Storage Box).
+  cafe_finance_media:

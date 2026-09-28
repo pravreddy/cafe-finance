@@ -1,0 +1,53 @@
+{% extends "ledger/base.html" %}
+{% load ledger_extras %}
+{% block title %}Reports · Cafe Finance{% endblock %}
+{% block head %}<style>
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tile .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.tile .v{font-size:22px;font-weight:700;margin-top:2px}.tile .s{font-size:12px;color:var(--muted)}
+.bar{display:flex;align-items:center;gap:10px;padding:5px 0}.bar .n{flex:0 0 42%;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bar .t{flex:1;height:14px;background:#eef1ed;border-radius:4px;overflow:hidden}.bar .t i{display:block;height:100%;background:var(--g);border-radius:0 4px 4px 0}.bar .a{flex:0 0 80px;text-align:right;font-size:14px}
+.strip{display:flex;align-items:flex-end;gap:2px;height:70px;margin-top:8px}.strip b{flex:1;background:var(--g);opacity:.85;border-radius:3px 3px 0 0;min-height:2px}
+.trend{display:flex;gap:8px;align-items:flex-end;height:110px;margin-top:8px}.trend .m{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;height:100%}.trend .bars{display:flex;gap:3px;align-items:flex-end;flex:1;width:100%;justify-content:center}.trend .bars b{width:40%;border-radius:3px 3px 0 0;min-height:2px}.trend .bars .i{background:#7fb59a}.trend .bars .e{background:var(--g)}.trend .lbl{font-size:11px;color:var(--muted)}
+.legend{font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 8px;vertical-align:middle}
+</style>{% endblock %}
+{% block content %}
+<h1>Reports</h1>
+<form method="get" class="row" style="margin-bottom:12px">
+  <select name="cafe"><option value="">All cafes</option>{% for c in cafes %}<option value="{{ c.pk }}" {% if cafe and c.pk == cafe.pk %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  <input type="month" name="month" value="{{ d.month|date:'Y-m' }}"><button class="btn small">Show</button>
+  <a class="btn secondary small" href="{% url 'ledger:export' %}?cafe={{ cafe.pk|default:'' }}&month={{ d.month|date:'Y-m' }}">CSV</a>
+  <a class="btn secondary small" href="{% url 'ledger:export' %}?cafe={{ cafe.pk|default:'' }}&month={{ d.month|date:'Y-m' }}&zip=1">CSV + proofs</a>
+</form>
+
+<div class="tiles">
+  <div class="tile"><div class="l">Income</div><div class="v">₹{{ d.total_income|inr }}</div><div class="s">{{ d.count_income }} rows</div></div>
+  <div class="tile"><div class="l">Expenses</div><div class="v">₹{{ d.total_expense|inr }}</div><div class="s">{{ d.count_expense }} rows · {{ d.unproven }} without proof</div></div>
+  <div class="tile"><div class="l">Net</div><div class="v" style="color:{% if d.net < 0 %}var(--bad){% else %}var(--ok){% endif %}">₹{{ d.net|inr }}</div><div class="s">{% if d.closed %}month closed{% elif d.closed is not None %}month open{% endif %}{% if d.late %} · {{ d.late }} late{% endif %}</div></div>
+  <div class="tile"><div class="l">Waiting</div><div class="v">{{ d.pending }}</div><div class="s">to confirm{% if d.reading %} · {{ d.reading }} being read{% endif %}{% if d.unmatched %} · {{ d.unmatched }} in WhatsApp only{% endif %}</div></div>
+  <div class="tile"><div class="l">Owed to vendors</div><div class="v">₹{{ d.owed_invoices|inr }}</div><div class="s">{{ d.open_invoices }} open invoices</div></div>
+  <div class="tile"><div class="l">Salaries left</div><div class="v">₹{{ d.owed_payroll|inr }}</div><div class="s">{{ d.open_payroll }} open</div></div>
+</div>
+
+<h2>Expenses by category</h2>
+<div class="card">{% for r in d.by_cat %}<div class="bar"><span class="n">{{ r.category__name|default:"Uncategorised" }}</span><span class="t"><i style="width:{{ r.s|pct:d.total_expense }}%"></i></span><span class="a">₹{{ r.s|inr }}</span></div>{% empty %}<div class="muted">No confirmed expenses this month.</div>{% endfor %}</div>
+
+<h2>Spend per day</h2>
+<div class="card"><div class="strip">{% for x in d.days %}<b title="{{ x.day|date:'d M' }} ₹{{ x.s|inr }}" style="height:{{ x.s|pct:d.max_day }}%"></b>{% endfor %}</div><div class="muted" style="margin-top:4px">{{ d.month|date:"1 M" }} → {{ d.month|date:"M" }} end · tallest day ₹{{ d.max_day|inr }}</div></div>
+
+<h2>Last 6 months</h2>
+<div class="card"><div class="trend">{% for t in d.trend %}<div class="m"><div class="bars"><b class="i" title="income ₹{{ t.income|inr }}" style="height:{{ t.income|pct:d.max_trend }}%"></b><b class="e" title="expense ₹{{ t.expense|inr }}" style="height:{{ t.expense|pct:d.max_trend }}%"></b></div><span class="lbl">{{ t.month|date:"M" }}</span></div>{% endfor %}</div>
+<div class="legend"><i style="background:#7fb59a"></i>income <i style="background:var(--g)"></i>expenses</div></div>
+
+<div class="row" style="align-items:flex-start">
+<div style="flex:1;min-width:280px"><h2>Who paid</h2><div class="card">{% for r in d.by_person %}<div class="bar"><span class="n">{{ r.paid_by__name|default:"?" }}{% if r.funded_by__name and r.funded_by__name != r.paid_by__name %} <span class="muted">({{ r.funded_by__name }}'s money)</span>{% elif not r.funded_by__name %} <span class="muted">(cafe money)</span>{% endif %}</span><span class="t"><i style="width:{{ r.s|pct:d.total_expense }}%"></i></span><span class="a">₹{{ r.s|inr }}</span></div>{% empty %}<div class="muted">—</div>{% endfor %}</div></div>
+<div style="flex:1;min-width:280px"><h2>Top payees</h2><div class="card">{% for r in d.by_payee %}<div class="bar"><span class="n">{{ r.payee_name }}</span><span class="t"><i style="width:{{ r.s|pct:d.total_expense }}%"></i></span><span class="a">₹{{ r.s|inr }}</span></div>{% empty %}<div class="muted">—</div>{% endfor %}</div></div>
+</div>
+<h2>Income by source</h2>
+<div class="card">{% for r in d.by_income %}<div class="bar"><span class="n">{{ r.income_source|default:"—" }}</span><span class="t"><i style="width:{{ r.s|pct:d.total_income }}%"></i></span><span class="a">₹{{ r.s|inr }}</span></div>{% empty %}<div class="muted">No income rows. Set a FastPOS token on the cafe and run <code>pull_fastpos</code>, or type in cash sales.</div>{% endfor %}</div>
+
+<h2>Entries</h2>
+<div class="card" style="overflow-x:auto"><table>
+<tr><th>Date</th><th>Amount</th><th>Category</th><th>Payee</th><th>Paid by</th><th>Money</th><th>Proof</th><th></th></tr>
+{% for e in entries %}<tr><td>{{ e.booked_on|date:"d M" }}{% if e.late_for_id %} <span class="pill">late</span>{% endif %}</td><td style="white-space:nowrap">{% if e.kind == 'income' %}+{% endif %}₹{{ e.amount|inr }}</td><td>{{ e.category.name|default:e.income_source|default:"—" }}</td><td>{{ e.payee_name }}</td><td>{{ e.paid_by.name|default:"—" }}</td><td>{% if e.kind == 'expense' %}{% if not e.funded_by %}cafe{% elif e.funded_by_id == e.paid_by_id %}own{% else %}{{ e.funded_by.name }}{% endif %}{% else %}{{ e.get_kind_display }}{% endif %}</td><td>{% with p=e.proofs.first %}{% if p %}<a href="{% url 'ledger:proof_file' p.pk %}" target="_blank">📎</a>{% else %}<span class="muted">none</span>{% endif %}{% endwith %}</td><td><span class="tag">{{ e.cf_tag }}</span></td></tr>
+{% empty %}<tr><td colspan="8" class="muted">Nothing confirmed this month.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -27,8 +27,10 @@ from django.utils import timezone
 class Cafe(models.Model):
     name = models.CharField(max_length=80, unique=True)
     slug = models.SlugField(max_length=40, unique=True)
-    # FastPOS tenant slug, for pulling daily sales into the income side.
+    # FastPOS tenant slug + an owner API token, for pulling daily sales into the
+    # income side (manage.py pull_fastpos). Blank = this cafe has no POS.
     fastpos_tenant = models.CharField(max_length=60, blank=True)
+    fastpos_token = models.CharField(max_length=80, blank=True)
     # WhatsApp group names whose posts belong to this cafe (reconciler).
     whatsapp_groups = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)

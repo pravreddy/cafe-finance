@@ -1,0 +1,19 @@
+{
+  "name": "cafe-finance-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cafe Finance Android shell. Wraps https://ledger.guhya.co.in and adds the one thing a browser cannot reliably do on every phone: appear in the Android share sheet and hand the shared screenshot / PDF to the web app.",
+  "scripts": {
+    "sync": "cap sync",
+    "android": "cap open android",
+    "run:android": "cap run android",
+    "apk": "cd android && ./gradlew assembleDebug && echo '\\nAPK: android/app/build/outputs/apk/debug/app-debug.apk'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

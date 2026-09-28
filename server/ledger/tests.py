@@ -429,3 +429,45 @@ class Section9Tests(TestCase):
         c.post(f"/entries/{e.pk}/confirm/")
         e.refresh_from_db()
         self.assertEqual(e.status, LedgerEntry.Status.PENDING)
+
+
+@override_settings(DOC_AI_PROVIDER="mock", API_TOKEN="t0k", DOC_AI_SYNC=True)
+class ReportsTests(TestCase):
+    def setUp(self):
+        call_command("seed_basic", "--with-users", verbosity=0)
+        self.c = Client(); self.c.login(username="praveen", password="change-me")
+        r = services.ingest(PNG_A, "pay_083414546430.png", "image/png", origin=Proof.Origin.APP_SHARE,
+                            channel=ShareEvent.Channel.APP_SHARE, shared_by=Person.objects.get(name="Srinivas"))
+        from .models import Category
+        e = r.entry; e.category = Category.objects.get(slug="repairs"); e.save()
+        services.confirm_entry(e, Person.objects.get(name="Praveen"))
+
+    def test_reports_page_and_exports(self):
+        r = self.c.get("/reports/?month=2026-09")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Painting / repairs"); self.assertContains(r, "10,000")
+        r = self.c.get("/export/?month=2026-09")
+        self.assertEqual(r["Content-Type"].split(";")[0], "text/csv")
+        self.assertIn("083414546430", r.content.decode())
+        r = self.c.get("/export/?month=2026-09&zip=1")
+        self.assertEqual(r["Content-Type"], "application/zip")
+        import io, zipfile
+        names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+        self.assertIn("entries.csv", names); self.assertTrue(any(n.startswith("proofs/") for n in names))
+
+    def test_inr_filter(self):
+        from .templatetags.ledger_extras import inr
+        self.assertEqual(inr(1234567), "12,34,567"); self.assertEqual(inr(999), "999"); self.assertEqual(inr(-1500), "-1,500")
+
+    def test_pull_fastpos_writes_pos_income(self):
+        from unittest import mock
+        from .models import Cafe
+        cafe = Cafe.objects.get(slug="cafegopala"); cafe.fastpos_token = "abc"; cafe.save()
+        fake = mock.Mock(); fake.json.return_value = {"collection": "4321.50"}; fake.raise_for_status = lambda: None
+        with mock.patch("ledger.management.commands.pull_fastpos.requests.get", return_value=fake):
+            call_command("pull_fastpos", "--from", "2026-09-10", "--to", "2026-09-11", verbosity=0)
+            call_command("pull_fastpos", "--from", "2026-09-10", "--to", "2026-09-11", verbosity=0)  # idempotent
+        rows = LedgerEntry.objects.filter(kind="income", income_source="pos")
+        self.assertEqual(rows.count(), 2)
+        self.assertEqual(rows.first().amount, Decimal("4321.50"))
+        self.assertEqual(rows.first().status, LedgerEntry.Status.CONFIRMED)

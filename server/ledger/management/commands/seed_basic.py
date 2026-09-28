@@ -36,6 +36,7 @@ CATEGORIES = [
     ("Misc", "misc", "expense", 90),
     ("Partner money in", "partner-in", "transfer", 100),
     ("Partner money out", "partner-out", "transfer", 101),
+    ("POS sales", "pos-sales", "income", 109),
     ("Cash sales (no POS)", "cash-sales", "income", 110),
     ("Other income", "other-income", "income", 111),
 ]

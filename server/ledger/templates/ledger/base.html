@@ -37,7 +37,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;b
 </style>
 {% block head %}{% endblock %}
 </head>
-<body>
+<body data-auth="{% if user.is_authenticated %}1{% else %}0{% endif %}">
 <header>
   <a href="{% url 'ledger:home' %}">☕ Cafe Finance</a>
   <span class="sp"></span>
@@ -45,7 +45,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;b
   <nav>
     <a href="{% url 'ledger:share' %}">＋ Share</a>
     <a href="{% url 'ledger:add' %}">Type</a>
-    {% if user.person.role == "partner" %}<a href="{% url 'ledger:balance' %}">Balance</a><a href="{% url 'ledger:pnl' %}">Month</a>{% endif %}
+    {% if user.person.role == "partner" %}<a href="{% url 'ledger:reports' %}">Reports</a><a href="{% url 'ledger:balance' %}">Balance</a>{% endif %}
     {% if user.person.can_confirm %}<a href="{% url 'ledger:queue' %}">Queue</a>{% endif %}
   </nav>
   {% endif %}
@@ -56,6 +56,29 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;b
 </main>
 <script>
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(()=>{}); }
+// Native Android shell (mobile/): when the app was opened from the share sheet,
+// the ShareIn plugin hands us the files; post them to /share/ like the PWA does.
+(async function(){
+  const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ShareIn;
+  if (!P || sessionStorage.getItem('cf-share-busy')) return;
+  try {
+    const r = await P.consume();
+    if (!r || !r.files || !r.files.length) return;
+    if (document.body.dataset.auth !== '1') { alert('Sign in first, then share again.'); return; }
+    sessionStorage.setItem('cf-share-busy', '1');
+    const fd = new FormData();
+    for (const f of r.files) {
+      const bin = atob(f.data); const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      fd.append('files', new Blob([arr], {type: f.mime || 'application/octet-stream'}), f.name || 'shared');
+    }
+    if (r.text) fd.append('text', r.text);
+    fd.append('channel', r.fromWhatsApp ? 'wa_forward' : 'app_share');
+    const resp = await fetch('/share/', {method: 'POST', body: fd, credentials: 'include'});
+    sessionStorage.removeItem('cf-share-busy');
+    window.location.href = resp.redirected ? resp.url : '/';
+  } catch (e) { sessionStorage.removeItem('cf-share-busy'); console.log('share-in failed', e); }
+})();
 </script>
 {% block script %}{% endblock %}
 </body>

@@ -26,6 +26,8 @@ urlpatterns = [
     path("periods/", views.periods, name="periods"),
     path("periods/<int:cafe_pk>/<str:ym>/close/", views.period_close, name="period_close"),
     path("payroll/", views.payroll, name="payroll"),
+    path("reports/", views.reports, name="reports"),
+    path("export/", views.export, name="export"),
 
     path("sw.js", views.service_worker, name="sw"),
     path("manifest.json", views.manifest, name="manifest"),

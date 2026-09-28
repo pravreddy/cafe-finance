@@ -483,3 +483,45 @@ def payroll(request):
     return render(request, "ledger/payroll.html", {"rows": rows, "me": me,
                   "staff": Person.objects.filter(role=Person.Role.STAFF), "cafes": Cafe.objects.filter(is_active=True),
                   "this_month": timezone.localdate().strftime("%Y-%m")})
+
+
+# ------------------------------------------------------------------ reports (analysis)
+
+def _month_param(request):
+    try:
+        return timezone.datetime.strptime(request.GET.get("month", ""), "%Y-%m").date()
+    except ValueError:
+        return timezone.localdate().replace(day=1)
+
+
+@login_required
+def reports(request):
+    from . import reports as R
+    me = current_person(request)
+    if me.role != Person.Role.PARTNER:
+        messages.error(request, "Reports are for partners.")
+        return redirect("ledger:home")
+    cafe = Cafe.objects.filter(pk=request.GET.get("cafe")).first()
+    month = _month_param(request)
+    d = R.dashboard(cafe, month)
+    entries = R.entries_for(cafe, month)[:300]
+    return render(request, "ledger/reports.html", {"d": d, "cafe": cafe, "entries": entries,
+                  "cafes": Cafe.objects.filter(is_active=True), "me": me})
+
+
+@login_required
+def export(request):
+    from . import reports as R
+    me = current_person(request)
+    if me.role != Person.Role.PARTNER:
+        return HttpResponse(status=403)
+    cafe = Cafe.objects.filter(pk=request.GET.get("cafe")).first()
+    month = _month_param(request)
+    name = f"cafe-finance_{cafe.slug if cafe else 'all'}_{month:%Y-%m}"
+    if request.GET.get("zip"):
+        resp = HttpResponse(R.export_zip(cafe, month), content_type="application/zip")
+        resp["Content-Disposition"] = f'attachment; filename="{name}.zip"'
+    else:
+        resp = HttpResponse(R.export_csv(cafe, month), content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = f'attachment; filename="{name}.csv"'
+    return resp

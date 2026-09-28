@@ -42,6 +42,8 @@ one or more payments (installments). Both arrive through the same door.
 | `server/` | Django app + PWA. Ledger, document AI, dedup, review queue, API for the scripts. |
 | `reconciler/` | Mac script that reads WhatsApp Desktop's `ChatStorage.sqlite`; launchd plist. |
 | `mail/` | IMAP puller for invoice attachments (Gmail label). |
+| `mobile/` | Android app (Capacitor shell + ShareIn plugin): "Cafe Finance" in the share sheet. |
+| `deploy/` | Hetzner stack: compose overlay, nginx conf, deploy.sh / cert.sh (guhya-pos pattern). |
 | `docs/` | Design notes 01–05. |
 | `.github/workflows/` | Build → test on fresh Postgres → deploy (guhya-pos pattern). |
 
@@ -75,5 +77,8 @@ appears in the share sheet.
 
 ## Status
 
-2026-09-16 — server core, PWA screens, reconciler and mail scripts written and
-tested locally (15 tests green). Not deployed. Reports not built. See STORY.md §5–7.
+2026-09-28 — collect: PWA share target + Android app (`mobile/`); read: queue worker on
+Ollama; analyse: /reports/ (KPIs, categories, daily spend, 6-month trend, who paid, payees,
+income by source, entries, CSV / CSV+proofs export), /balance/, /pnl/, month close,
+salaries; income: `pull_fastpos` cron. 27 tests green. **Not yet pushed to GitHub or
+deployed** — see deploy/README.md; three steps: DNS, cert.sh, push to main.
